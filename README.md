@@ -6,7 +6,7 @@ A pocket money, chores and habits app for one child on one Android phone. It is 
 
 **Jobs.** The child taps a chore to claim it. A parent approves or rejects it behind a PIN.
 
-**Money.** Two pockets, Spending and Savings. Spending can go into a small overdraft (default $15). Savings earns monthly interest set by the parent.
+**Money.** One balance that earns monthly interest set by the parent. Up to 3 goals (name, price, icon) hold part of it. The rest is free to spend. A small overdraft (default $15) is allowed only when nothing is in a goal.
 
 **Habits.** Daily routines (morning and night) and weekly routines on chosen days, with streaks.
 

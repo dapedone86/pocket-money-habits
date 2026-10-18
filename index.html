@@ -171,27 +171,22 @@
   }
   .emoji-grid button[aria-pressed="true"]{border-color:var(--ink);background:var(--mango);box-shadow:0 3px 0 var(--ink)}
 
-  /* ---- money ---- */
-  .splitbar{
-    display:flex;height:48px;border:var(--line);border-radius:999px;overflow:hidden;
-    box-shadow:var(--pop);background:var(--card);margin:0 0 8px;
+  /* ---- money (v2: one balance + goals) ---- */
+  .free{background:#FFF4DF}
+  .free .amt{font-size:34px;font-weight:900;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+  .goal{display:flex;gap:12px;align-items:flex-start}
+  .goal .face{
+    width:52px;height:52px;flex:none;display:grid;place-items:center;font-size:27px;
+    border:var(--line);border-radius:16px;background:var(--paper);padding:0;min-height:0;box-shadow:none;
   }
-  .splitbar span{
-    display:grid;place-items:center;font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;
-    transition:flex-basis .55s cubic-bezier(.2,.8,.2,1);
-  }
-  .splitbar .sp{background:var(--mango)}
-  .splitbar .sv{background:var(--blueberry);color:#fff}
-  .splitbar .sv:not(:first-child){border-left:var(--line)}
-  .legend{display:flex;gap:14px;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 18px}
-  .legend i{width:11px;height:11px;border:2px solid var(--ink);border-radius:3px;display:inline-block;margin-right:5px}
-
-  .pools{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 16px}
-  .pool{border:var(--line);border-radius:var(--r-lg);box-shadow:var(--pop-lg);padding:14px}
-  .pool.sp{background:#FFF4DF}
-  .pool.sv{background:#E9EEFF}
-  .pool .amt{font-size:25px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .pool .cap{font-size:12px;font-weight:800;color:var(--muted);margin-top:2px}
+  .goal .gname{font-size:17px;font-weight:900;line-height:1.2}
+  .goal .gsub{font-size:13px;font-weight:800;color:var(--muted);margin-top:2px}
+  .gbar{height:16px;border:var(--line);border-radius:999px;background:var(--card);overflow:hidden;margin:10px 0 12px}
+  .gbar i{display:block;height:100%;background:var(--blueberry);transition:width .55s cubic-bezier(.2,.8,.2,1)}
+  .gbar.full i{background:var(--lime)}
+  .minibar{height:8px;border:2px solid var(--ink);border-radius:999px;overflow:hidden;background:var(--card);flex:1}
+  .minibar i{display:block;height:100%;background:var(--blueberry)}
+  .minibar.full i{background:var(--lime)}
 
   .txn{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:2px dotted #DDD3F0}
   .txn:last-child{border-bottom:0}
@@ -384,7 +379,7 @@ function migrate(state){
   state.security = { ...base.security, ...(state.security||{}) };
   state.interest = { ...base.interest, ...(state.interest||{}) };
   state.habits   = { ...base.habits,   ...(state.habits||{}) };
-  for(const k of ["chores","claims","transactions"]) if(!Array.isArray(state[k])) state[k] = base[k];
+  for(const k of ["chores","claims","transactions","goals"]) if(!Array.isArray(state[k])) state[k] = base[k];
   // habits gained icons in stage 6 — give older saves sensible ones
   const guess = { h_teeth_am:"🪥", h_teeth_pm:"🪥", h_cream:"🧴", h_shower:"🚿" };
   for(const list of [state.habits.daily, state.habits.weekly])
@@ -408,6 +403,7 @@ function seedState(){
     ],
     claims: [],
     transactions: [],
+    goals: [],
     interest: { lastCreditedMonth: Clock.month(), totalEarnedCents:0 },
     habits: {
       daily: [
@@ -429,23 +425,29 @@ function tx(state, entry){
   state.transactions.push(t);
   return t;
 }
+/* v2: one balance. "total" is everything she has; each goal holds part of
+   it; "free" is the rest, what she can spend. Interest is paid on total.
+   v1 "transfer" entries (Spending ↔ Savings) move nothing between owners,
+   so they count as zero now and are hidden from her history. */
 function balances(state){
-  let spending = 0, savings = 0;
+  let total = 0;
+  const goals = {};
   for(const t of state.transactions){
     switch(t.type){
-      case "chore_payment": spending += t.amountCents; break;
-      case "manual_credit": t.pool === "savings" ? savings += t.amountCents : spending += t.amountCents; break;
-      case "spend":         spending -= t.amountCents; break;
-      case "interest":      savings  += t.amountCents; break;
-      case "transfer":
-        if(t.from === "spending"){ spending -= t.amountCents; savings += t.amountCents; }
-        else { savings -= t.amountCents; spending += t.amountCents; }
-        break;
+      case "chore_payment":
+      case "manual_credit":
+      case "interest":  total += t.amountCents; break;
+      case "spend":     total -= t.amountCents;
+                        if(t.goalId) goals[t.goalId] = (goals[t.goalId]||0) - t.amountCents; break;
+      case "goal_in":   goals[t.goalId] = (goals[t.goalId]||0) + t.amountCents; break;
+      case "goal_out":  goals[t.goalId] = (goals[t.goalId]||0) - t.amountCents; break;
     }
   }
-  return { spending, savings, total: spending + savings };
+  const inGoals = Object.values(goals).reduce((n,c) => n + c, 0);
+  return { total, goals, inGoals, free: total - inGoals };
 }
-const history = s => s.transactions.slice().sort((a,b) => b.day.localeCompare(a.day) || b.n - a.n);
+const history = s => s.transactions.filter(t => t.type !== "transfer")
+  .sort((a,b) => b.day.localeCompare(a.day) || b.n - a.n);
 
 /* --------------------------------------------------------------- chores */
 function claimChore(state, choreId){
@@ -466,7 +468,7 @@ function approveClaims(state, ids){
     const c = state.claims.find(x => x.id === id && x.status === "pending");
     if(!c) continue;
     c.status = "approved"; c.decidedAt = new Date().toISOString();
-    tx(state, { type:"chore_payment", amountCents:c.payCents, pool:"spending",
+    tx(state, { type:"chore_payment", amountCents:c.payCents,
                 note:c.choreName, claimId:c.id, day:c.day });
     paid += c.payCents; count++;
   }
@@ -490,22 +492,67 @@ function recentDecisions(state){
 }
 
 /* ---------------------------------------------------------- her actions */
+/* Free money can dip to −overdraft only when nothing is sitting in goals.
+   If a goal holds money, she takes it back first: that's the decision the
+   goals are there to make her think about. */
+const spendFloor = (state, b = balances(state)) => b.inGoals > 0 ? 0 : -state.settings.overdraftLimitCents;
+
 function logSpend(state, amountCents, note){
   if(!Number.isInteger(amountCents) || amountCents <= 0) return { ok:false, reason:"Type in how much you spent." };
-  const floor = -state.settings.overdraftLimitCents;
-  const after = balances(state).spending - amountCents;
-  if(after < floor) return { ok:false, reason:`That would take Spending past ${Money.fmt(floor)}. Try a smaller amount.` };
-  tx(state, { type:"spend", amountCents, pool:"spending", note:(note||"").trim() || "Something" });
-  return { ok:true, after };
-}
-function transfer(state, from, amountCents){
   const b = balances(state);
-  if(!Number.isInteger(amountCents) || amountCents <= 0) return { ok:false, reason:"Pick an amount first." };
-  if(from === "savings"  && amountCents > b.savings)  return { ok:false, reason:"Savings hasn't got that much." };
-  if(from === "spending" && amountCents > b.spending) return { ok:false, reason:"Spending hasn't got that much." };
-  tx(state, { type:"transfer", from, to: from==="savings" ? "spending" : "savings", amountCents,
-              note: from==="savings" ? "Moved to Spending" : "Moved to Savings" });
+  if(b.free - amountCents < spendFloor(state, b))
+    return { ok:false, reason: b.inGoals > 0 ? "Not enough free money. Take some back from a goal first." : "That's more than you have." };
+  tx(state, { type:"spend", amountCents, note:(note||"").trim() || "Something" });
+  return { ok:true, after: b.free - amountCents };
+}
+
+/* ---- goals (v2) ---- */
+const MAX_GOALS = 3;
+const activeGoals = s => s.goals.filter(g => g.status === "active");
+function addGoal(state, { name, emoji, targetCents }){
+  if(activeGoals(state).length >= MAX_GOALS) return { ok:false, reason:`${MAX_GOALS} goals at a time.` };
+  if(!name) return { ok:false, reason:"What are you saving for?" };
+  if(!Number.isInteger(targetCents) || targetCents <= 0) return { ok:false, reason:"How much does it cost?" };
+  const g = { id:uid("goal"), name, emoji: emoji || "🎁", targetCents, status:"active", createdAt:new Date().toISOString() };
+  state.goals.push(g);
+  return { ok:true, goal:g };
+}
+function moveToGoal(state, goalId, cents){
+  const b = balances(state), g = state.goals.find(x => x.id === goalId && x.status === "active");
+  if(!g) return { ok:false, reason:"That goal's gone." };
+  if(!Number.isInteger(cents) || cents <= 0) return { ok:false, reason:"Pick an amount first." };
+  if(cents > b.free) return { ok:false, reason:"You haven't got that much free." };
+  tx(state, { type:"goal_in", goalId, amountCents:cents, note:g.name });
   return { ok:true };
+}
+function takeFromGoal(state, goalId, cents){
+  const have = balances(state).goals[goalId] || 0, g = state.goals.find(x => x.id === goalId);
+  if(!Number.isInteger(cents) || cents <= 0) return { ok:false, reason:"Pick an amount first." };
+  if(cents > have) return { ok:false, reason:"That goal hasn't got that much." };
+  tx(state, { type:"goal_out", goalId, amountCents:cents, note:g ? g.name : "Goal" });
+  return { ok:true };
+}
+/** She bought it. The price comes out of the goal first, any extra out of free money;
+    anything left in the goal goes back to free money. */
+function buyGoal(state, goalId, priceCents){
+  const b = balances(state), g = state.goals.find(x => x.id === goalId && x.status === "active");
+  if(!g) return { ok:false, reason:"That goal's gone." };
+  if(!Number.isInteger(priceCents) || priceCents <= 0) return { ok:false, reason:"How much did it cost?" };
+  const have = b.goals[goalId] || 0;
+  const fromGoal = Math.min(have, priceCents), extra = priceCents - fromGoal;
+  if(extra > Math.max(0, b.free)) return { ok:false, reason:"Not enough money for that yet." };
+  tx(state, { type:"spend", goalId, amountCents:fromGoal, note:g.name });
+  if(extra) tx(state, { type:"spend", amountCents:extra, note:g.name + " (extra)" });
+  if(have > fromGoal) tx(state, { type:"goal_out", goalId, amountCents:have - fromGoal, note:g.name });
+  g.status = "bought"; g.doneAt = new Date().toISOString();
+  return { ok:true, leftover: have - fromGoal };
+}
+function removeGoal(state, goalId){
+  const have = balances(state).goals[goalId] || 0, g = state.goals.find(x => x.id === goalId && x.status === "active");
+  if(!g) return { ok:false };
+  if(have > 0) tx(state, { type:"goal_out", goalId, amountCents:have, note:g.name });
+  g.status = "removed"; g.doneAt = new Date().toISOString();
+  return { ok:true, returned: have };
 }
 
 /* -------------------------------------------------------------- interest */
@@ -513,10 +560,10 @@ function applyInterest(state, nowDay = Clock.day()){
   const owed = Clock.monthsBetween(state.interest.lastCreditedMonth, nowDay.slice(0,7));
   const credits = [];
   for(const monthKey of owed){
-    const savings = balances(state).savings;
-    const amount = Math.max(0, Math.round(savings * state.settings.interestRateBps / 10000 / 12));
+    const all = balances(state).total;            // v2: interest on all her money
+    const amount = Math.max(0, Math.round(all * state.settings.interestRateBps / 10000 / 12));
     if(amount > 0){
-      tx(state, { type:"interest", amountCents:amount, pool:"savings", note:"Interest",
+      tx(state, { type:"interest", amountCents:amount, note:"Interest",
                   day:`${monthKey}-01`, at:new Date(`${monthKey}-01T00:00:00Z`).toISOString(), monthKey });
       state.interest.totalEarnedCents += amount;
       credits.push({ monthKey, amount });
@@ -836,10 +883,10 @@ function renderParent(){
         <span class="spacer"></span>
         <button class="tiny" id="add-money">Add money</button>
       </div>
-      <div class="row"><span class="spacer">Spending</span><b class="num">${Money.fmt(b.spending)}</b></div>
-      <div class="row"><span class="spacer">Savings</span><b class="num">${Money.fmt(b.savings)}</b></div>
-      <div class="row"><span class="spacer">Total</span><b class="num">${Money.fmt(b.total)}</b></div>
-      <p class="sub" style="margin:12px 0 0">Spending can run down to ${Money.fmt(-STATE.settings.overdraftLimitCents)} before it's blocked.</p>
+      <div class="row"><span class="spacer">Free to spend</span><b class="num">${Money.fmt(b.free)}</b></div>
+      ${activeGoals(STATE).map(g => `<div class="row"><span class="spacer">${esc(g.emoji)} ${esc(g.name)}</span><b class="num">${Money.fmt(b.goals[g.id]||0)}</b></div>`).join("")}
+      <div class="row"><span class="spacer"><b>Total</b></span><b class="num">${Money.fmt(b.total)}</b></div>
+      <p class="sub" style="margin:12px 0 0">With nothing in her goals, she can spend down to ${Money.fmt(-STATE.settings.overdraftLimitCents)}.</p>
     </div>
 
     <div class="card">
@@ -896,7 +943,7 @@ function renderParent(){
       const ids = chosen();
       const r = approveClaims(STATE, ids);
       await save(); render();
-      toast(`Approved ${r.count} — ${Money.fmt(r.paidCents)} into Spending.`);
+      toast(`Approved ${r.count} — ${Money.fmt(r.paidCents)} added to her money.`);
     };
     document.getElementById("reject").onclick = async () => {
       const ids = chosen();
@@ -1010,15 +1057,16 @@ function choreSheet(choreId){
 const dayNum = d => { const [y,m,dd] = d.split("-").map(Number); return Date.UTC(y,m-1,dd)/864e5; };
 const numDay = n => new Date(n*864e5).toISOString().slice(0,10);
 
-function savingsSeries(state){
+const MONEY_IN = new Set(["chore_payment","manual_credit","interest"]);
+function moneySeries(state){                       // v2: all her money over time
   const rel = state.transactions
-    .filter(t => t.type === "interest" || (t.type === "manual_credit" && t.pool === "savings") || t.type === "transfer")
+    .filter(t => MONEY_IN.has(t.type) || t.type === "spend")
     .sort((a,b) => a.day.localeCompare(b.day) || a.n - b.n);
   if(!rel.length) return [];
   let bal = 0;
   const pts = [];
   for(const t of rel){
-    bal += t.type === "transfer" ? (t.from === "spending" ? t.amountCents : -t.amountCents) : t.amountCents;
+    bal += t.type === "spend" ? -t.amountCents : t.amountCents;
     if(pts.length && pts[pts.length-1].day === t.day) pts[pts.length-1].cents = bal;
     else pts.push({ day:t.day, cents:bal });
   }
@@ -1028,16 +1076,16 @@ function savingsSeries(state){
   return pts;
 }
 
-function savingsChart(pts){
+function moneyChart(pts){
   if(pts.length < 2) return `<div class="empty" style="padding:20px 8px">
-    <span class="big">📈</span>Put something into Savings and your line starts climbing here.</div>`;
+    <span class="big">📈</span>Do a job and your line starts climbing here.</div>`;
 
   const W = 340, H = 152, L = 8, R = 46, T = 14, B = 20;
   const x0 = dayNum(pts[0].day), x1 = dayNum(pts[pts.length-1].day);
   const span = Math.max(1, x1 - x0);
   const top = Math.max(100, ...pts.map(p => p.cents));
   const px = d => L + (dayNum(d) - x0) / span * (W - L - R);
-  const py = c => T + (1 - c / top) * (H - T - B);
+  const py = c => T + (1 - Math.max(0, c) / top) * (H - T - B);
 
   const line = pts.map((p,i) => `${i ? "L" : "M"}${px(p.day).toFixed(1)},${py(p.cents).toFixed(1)}`).join(" ");
   const area = `${line} L${px(pts[pts.length-1].day).toFixed(1)},${(H-B).toFixed(1)} L${px(pts[0].day).toFixed(1)},${(H-B).toFixed(1)} Z`;
@@ -1046,7 +1094,7 @@ function savingsChart(pts){
   const short = d => { const [,m,dd] = d.split("-"); return `${Number(dd)}/${Number(m)}`; };
 
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Savings grew to ${Money.fmt(last.cents)}">
+      aria-label="Your money is now ${Money.fmt(last.cents)}">
     <line class="grid" x1="${L}" y1="${py(top)}" x2="${W-R}" y2="${py(top)}"/>
     <line class="grid" x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}"/>
     <text class="tick" x="${W-R+6}" y="${py(top)+4}">${Money.fmt(top)}</text>
@@ -1065,7 +1113,7 @@ const monthName = k => {
   return new Date(Date.UTC(y,m-1,1)).toLocaleString("en-AU",{ month:"long", timeZone:"UTC" }) + " " + y;
 };
 const nextInterestEstimate = state =>
-  Math.max(0, Math.round(balances(state).savings * state.settings.interestRateBps / 10000 / 12));
+  Math.max(0, Math.round(balances(state).total * state.settings.interestRateBps / 10000 / 12));
 
 /** Shown once, on the open where the money actually lands. */
 function interestSheet(credits){
@@ -1079,8 +1127,8 @@ function interestSheet(credits){
       <div class="bignum">+${Money.fmt(total)}</div>
       <p class="sub" style="margin:12px 0 4px">
         ${credits.length === 1
-          ? `Your savings earned this in ${esc(monthName(credits[0].monthKey))}, just for leaving it there.`
-          : `Your savings earned this over ${credits.length} months, just for leaving it there.`}
+          ? `Your money earned this in ${esc(monthName(credits[0].monthKey))}, just for keeping it.`
+          : `Your money earned this over ${credits.length} months, just for keeping it.`}
       </p>
       ${credits.length > 1 ? `<div style="margin:10px 0 4px">${credits.map(c =>
         `<div class="row" style="font-size:14px;padding:3px 0"><span class="spacer" style="text-align:left">${esc(monthName(c.monthKey))}</span><b class="num">+${Money.fmt(c.amount)}</b></div>`).join("")}</div>` : ""}
@@ -1102,7 +1150,7 @@ function rateSheet(){
     <div class="sheet" role="dialog" aria-modal="true">
       <p class="eyebrow">Parent</p>
       <h2>Interest rate</h2>
-      <p class="sub">Per year, paid into Savings on the 1st of each month and compounding.</p>
+      <p class="sub">Per year, on all her money, paid on the 1st of each month and compounding.</p>
       <label class="field"><span class="eyebrow">Rate % per year</span>
         <input id="r-val" inputmode="decimal" value="${(STATE.settings.interestRateBps/100).toFixed(2)}"></label>
       <p class="sub" id="r-preview"></p>
@@ -1116,7 +1164,7 @@ function rateSheet(){
   const close = () => veil.remove();
   const preview = () => {
     const bps = Math.round(parseFloat(q("#r-val").value) * 100);
-    const sav = balances(STATE).savings;
+    const sav = Math.max(0, balances(STATE).total);
     q("#r-preview").textContent = (isFinite(bps) && bps >= 0)
       ? `On ${Money.fmt(sav)} that's about ${Money.fmt(Math.round(sav*bps/10000/12))} next month.`
       : "";
@@ -1139,14 +1187,13 @@ function rateSheet(){
 function txnLook(t){
   switch(t.type){
     case "chore_payment": return { ic:"🧺", label:t.note || "Job", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
-    case "manual_credit": return { ic:"🎁", label:t.note || "Money in",
-                                   sub:t.pool === "savings" ? "into Savings" : "into Spending",
-                                   amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
-    case "interest":      return { ic:"✨", label:"Interest on your savings", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
-    case "spend":         return { ic:"🛍️", label:t.note || "Something", amt:"−"+Money.fmt(t.amountCents) };
-    case "transfer":      return { ic: t.from === "spending" ? "🏦" : "↩️",
-                                   label: t.from === "spending" ? "Moved into Savings" : "Moved back to Spending",
-                                   amt: Money.fmt(t.amountCents) };
+    case "manual_credit": return { ic:"🎁", label:t.note || "Money in", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "interest":      return { ic:"✨", label:"Interest", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "spend":         return t.goalId
+                            ? { ic:"🎉", label:"Bought: " + (t.note || "goal"), amt:"−"+Money.fmt(t.amountCents) }
+                            : { ic:"🛍️", label:t.note || "Something", amt:"−"+Money.fmt(t.amountCents) };
+    case "goal_in":       return { ic:"🎯", label:"Put towards " + (t.note || "a goal"), amt:Money.fmt(t.amountCents) };
+    case "goal_out":      return { ic:"↩️", label:"Back from " + (t.note || "a goal"), amt:Money.fmt(t.amountCents) };
     default: return { ic:"•", label:t.note || t.type, amt:Money.fmt(t.amountCents||0) };
   }
 }
@@ -1166,13 +1213,34 @@ function celebrate(x, y, chars = ["🪙","✨","🪙","⭐","✨","🪙"]){
   });
 }
 
+function goalCardHTML(g, b){
+  const have = Math.max(0, b.goals[g.id] || 0);
+  const pct = Math.min(100, Math.round(have / g.targetCents * 100));
+  const full = have >= g.targetCents;
+  const togo = g.targetCents - have;
+  return `
+    <div class="card">
+      <div class="goal">
+        <button class="face" data-goal-edit="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.emoji)}</button>
+        <div class="spacer">
+          <div class="gname">${esc(g.name)}</div>
+          <div class="gsub num">${Money.fmt(have)} of ${Money.fmt(g.targetCents)}${full ? " · ready! 🎉" : ` · ${Money.fmt(togo)} to go`}</div>
+        </div>
+      </div>
+      <div class="gbar ${full ? "full" : ""}"><i style="width:${pct}%"></i></div>
+      <div class="row" style="gap:8px">
+        ${full
+          ? `<button class="go spacer" data-goal-buy="${g.id}">I bought it</button>`
+          : `<button class="go spacer" data-goal-add="${g.id}" ${b.free > 0 ? "" : "disabled"}>Add money</button>`}
+        ${have > 0 ? `<button class="ghost" data-goal-take="${g.id}">Take back</button>` : ""}
+      </div>
+    </div>`;
+}
+
 function renderMoney(){
   const b = balances(STATE);
-  const pos = { sp: Math.max(0, b.spending), sv: Math.max(0, b.savings) };
-  const sum = pos.sp + pos.sv;
-  const spPct = sum ? Math.round(pos.sp / sum * 100) : 50;
+  const goals = activeGoals(STATE);
   const items = history(STATE);
-  const owing = b.spending < 0;
 
   let rows = "", lastDay = null;
   for(const t of items.slice(0,60)){
@@ -1188,46 +1256,33 @@ function renderMoney(){
   app.innerHTML = `
     <p class="eyebrow">Your money</p>
     <h1 class="num">${Money.fmt(b.total)}</h1>
-    <p class="sub">Altogether, in both pockets.</p>
+    <p class="sub">All of it earns ${(STATE.settings.interestRateBps/100).toFixed(2)}% a year.</p>
 
-    ${sum ? `
-      <div class="splitbar">
-        ${pos.sp ? `<span class="sp num" style="flex:0 0 ${spPct}%">${spPct >= 22 ? Money.fmt(pos.sp) : ""}</span>` : ""}
-        ${pos.sv ? `<span class="sv num" style="flex:0 0 ${100-spPct}%">${100-spPct >= 22 ? Money.fmt(pos.sv) : ""}</span>` : ""}
-      </div>
-      <div class="legend"><span><i style="background:var(--mango)"></i>Spending</span><span><i style="background:var(--blueberry)"></i>Savings</span></div>
-    ` : `<div class="card empty" style="margin-bottom:16px"><span class="big">🪙</span>Nothing in either pocket yet. Do a job and it'll show up here.</div>`}
-
-    <div class="pools">
-      <div class="pool sp">
-        <p class="eyebrow" style="margin-bottom:2px">Spending</p>
-        <div class="amt">${Money.fmt(b.spending)}</div>
-        <div class="cap">${owing ? "catching up" : "yours to use"}</div>
-      </div>
-      <div class="pool sv">
-        <p class="eyebrow" style="margin-bottom:2px">Savings</p>
-        <div class="amt">${Money.fmt(b.savings)}</div>
-        <div class="cap">growing</div>
-      </div>
+    <div class="card free">
+      <p class="eyebrow" style="margin-bottom:2px">Free to spend</p>
+      <div class="amt">${Money.fmt(b.free)}</div>
+      <button class="ghost" id="btn-spend" style="width:100%;margin-top:12px">I spent something</button>
     </div>
 
-    <div class="row" style="gap:10px;margin-bottom:20px">
-      <button class="go spacer" id="btn-move">Move money</button>
-      <button class="ghost spacer" id="btn-spend">I spent something</button>
+    <div class="row" style="margin:22px 0 10px">
+      <h2 style="margin:0">My goals</h2>
+      <span class="spacer"></span>
+      ${goals.length < MAX_GOALS ? `<button class="tiny" id="btn-goal">+ New goal</button>` : ""}
     </div>
+    ${goals.map(g => goalCardHTML(g, b)).join("")
+      || `<div class="card empty" style="margin-bottom:16px"><span class="big">🎯</span>What are you saving for? Add a goal and put money towards it.</div>`}
 
-    <div class="card">
+    <div class="card" style="margin-top:22px">
       <div class="row" style="margin-bottom:2px">
-        <h2 style="margin:0">Savings growing</h2>
+        <h2 style="margin:0">Your money over time</h2>
         <span class="spacer"></span>
         <span class="badge num">${(STATE.settings.interestRateBps/100).toFixed(2)}% a year</span>
       </div>
-      ${savingsChart(savingsSeries(STATE))}
+      ${moneyChart(moneySeries(STATE))}
       <div class="row" style="margin-top:10px"><span class="spacer">Interest earned so far</span>
         <b class="num">${Money.fmt(STATE.interest.totalEarnedCents)}</b></div>
       <div class="row"><span class="spacer">Next payday, 1st of ${esc(monthName(Clock.nextMonth(Clock.month())).split(" ")[0])}</span>
         <b class="num">about ${Money.fmt(nextInterestEstimate(STATE))}</b></div>
-      <p class="sub" style="margin:12px 0 0">The longer money sits in Savings, the more it earns — and the interest earns interest too.</p>
     </div>
 
     <div class="card">
@@ -1236,98 +1291,162 @@ function renderMoney(){
       ${items.length > 60 ? `<p class="sub" style="margin:14px 0 0">Showing the last 60.</p>` : ""}
     </div>`;
 
-  document.getElementById("btn-move").onclick = e => moveSheet(e.currentTarget);
   document.getElementById("btn-spend").onclick = () => spendSheet();
+  const ng = document.getElementById("btn-goal");
+  if(ng) ng.onclick = () => goalSheet(null);
+  app.querySelectorAll("[data-goal-edit]").forEach(el => el.onclick = () => goalSheet(el.dataset.goalEdit));
+  app.querySelectorAll("[data-goal-add]").forEach(el => el.onclick = () => goalMoneySheet(el.dataset.goalAdd, "in", el));
+  app.querySelectorAll("[data-goal-take]").forEach(el => el.onclick = () => goalMoneySheet(el.dataset.goalTake, "out"));
+  app.querySelectorAll("[data-goal-buy]").forEach(el => el.onclick = () => buySheet(el.dataset.goalBuy));
 }
 
-/* ---- move money between pools (no PIN — it's her money either way) ---- */
-function moveSheet(fromEl){
-  let dir = "spending";            // which pool the money leaves
-  let cents = null;
+/* ---- new / edit goal (no PIN: her goals, her money) ---- */
+const GOAL_ICONS = ["🎁","💄","🧴","🧸","🎮","🎧","📱","📚","🎨","✏️","👟","👗",
+                    "🎒","🛹","🚲","⚽","🎹","🎸","🍦","🍫","🎟️","🐶","🧩","⭐"];
+function goalSheet(goalId){
+  const g = goalId ? STATE.goals.find(x => x.id === goalId) : null;
+  let icon = g ? g.emoji : "🎁";
   const veil = document.createElement("div");
   veil.className = "veil";
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
-      <p class="eyebrow">Move money</p>
-      <h2 id="m-title">Into Savings</h2>
-      <p class="sub" id="m-avail"></p>
-      <div class="chips" id="m-dir">
-        <button data-dir="spending" aria-pressed="true">🏦 Into Savings</button>
-        <button data-dir="savings" aria-pressed="false">↩️ Back to Spending</button>
+      <p class="eyebrow">${g ? "Edit goal" : "New goal"}</p>
+      <h2>${g ? esc(g.name) : "What are you saving for?"}</h2>
+      <label class="field"><span class="eyebrow">What is it</span>
+        <input id="g-name" maxlength="30" value="${g ? esc(g.name) : ""}" placeholder="e.g. Lip balm"></label>
+      <label class="field"><span class="eyebrow">How much does it cost</span>
+        <input id="g-price" inputmode="decimal" value="${g ? (g.targetCents/100).toFixed(2) : ""}" placeholder="10.00"></label>
+      <p class="eyebrow">Pick an icon</p>
+      <div class="emoji-grid" id="g-icons" style="max-height:120px">
+        ${GOAL_ICONS.map(e => `<button type="button" data-emoji="${e}" aria-pressed="${e===icon}">${e}</button>`).join("")}
       </div>
-      <p class="eyebrow">How much</p>
-      <div class="chips" id="m-quick"></div>
-      <label class="field"><span class="eyebrow">Or type it</span>
-        <input id="m-amt" inputmode="decimal" placeholder="0.00"></label>
-      <div id="m-confirm"></div>
-      <div class="row" style="margin-top:6px">
-        <button class="ghost" id="m-cancel">Cancel</button>
-        <button class="go spacer" id="m-go" disabled>Move it</button>
+      <div class="row" style="margin-top:16px">
+        ${g ? `<button class="no" id="g-del">Remove</button>` : `<button class="ghost" id="g-cancel">Cancel</button>`}
+        <button class="go spacer" id="g-save">${g ? "Save" : "Add goal"}</button>
       </div>
     </div>`;
   document.body.appendChild(veil);
   const q = s => veil.querySelector(s);
   const close = () => veil.remove();
-  const avail = () => dir === "spending" ? balances(STATE).spending : balances(STATE).savings;
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+  q("#g-icons").onclick = e => {
+    const btn = e.target.closest("[data-emoji]");
+    if(!btn) return;
+    icon = btn.dataset.emoji;
+    q("#g-icons").querySelectorAll("[data-emoji]").forEach(x => x.setAttribute("aria-pressed", String(x === btn)));
+  };
+  if(q("#g-cancel")) q("#g-cancel").onclick = close;
+  if(q("#g-del")) q("#g-del").onclick = async () => {
+    const have = balances(STATE).goals[g.id] || 0;
+    if(!confirm(have > 0 ? `Remove “${g.name}”? Its ${Money.fmt(have)} goes back to free money.` : `Remove “${g.name}”?`)) return;
+    removeGoal(STATE, g.id); close(); await save(); render();
+  };
+  q("#g-save").onclick = async () => {
+    const name = q("#g-name").value.trim(), cents = Money.parse(q("#g-price").value);
+    if(g){
+      if(!name) return toast("Give it a name.");
+      if(!cents || cents <= 0) return toast("How much does it cost?");
+      g.name = name; g.targetCents = cents; g.emoji = icon;
+    } else {
+      const r = addGoal(STATE, { name, emoji:icon, targetCents:cents });
+      if(!r.ok) return toast(r.reason);
+    }
+    close(); await save(); render();
+  };
+}
 
-  function paint(){
-    const a = Math.max(0, avail());
-    q("#m-title").textContent = dir === "spending" ? "Into Savings" : "Back to Spending";
-    q("#m-avail").textContent = dir === "spending"
-      ? `You've got ${Money.fmt(a)} in Spending to move across.`
-      : `You've got ${Money.fmt(a)} saved up.`;
-    q("#m-quick").innerHTML = [50,100,200,500].filter(v => v <= a).map(v =>
-      `<button data-v="${v}" aria-pressed="${cents===v}">${Money.fmt(v)}</button>`).join("")
-      + (a > 0 ? `<button data-v="${a}" aria-pressed="${cents===a}">All of it</button>` : "");
-    q("#m-go").disabled = !(cents && cents > 0 && cents <= a);
-  }
-  paint();
-
+/* ---- put money into a goal, or take it back ---- */
+function goalMoneySheet(goalId, dir, fromEl){
+  const g = STATE.goals.find(x => x.id === goalId);
+  const b = balances(STATE);
+  const have = Math.max(0, b.goals[goalId] || 0);
+  const max = dir === "in" ? Math.max(0, Math.min(b.free, g.targetCents - have)) : have;
+  let cents = null;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">${esc(g.emoji)} ${esc(g.name)}</p>
+      <h2>${dir === "in" ? "Add money" : "Take money back"}</h2>
+      <p class="sub">${dir === "in"
+        ? `You've got ${Money.fmt(Math.max(0,b.free))} free. ${Money.fmt(g.targetCents - have)} still to go.`
+        : `${Money.fmt(have)} is in this goal.`}</p>
+      <div class="chips" id="q-quick">
+        ${[50,100,200,500].filter(v => v < max).map(v => `<button data-v="${v}">${Money.fmt(v)}</button>`).join("")}
+        ${max > 0 ? `<button data-v="${max}">${dir === "in" && max === g.targetCents - have ? "Fill it up" : "All of it"} (${Money.fmt(max)})</button>` : ""}
+      </div>
+      <label class="field"><span class="eyebrow">Or type it</span>
+        <input id="q-amt" inputmode="decimal" placeholder="0.00"></label>
+      <div class="row" style="margin-top:6px">
+        <button class="ghost" id="q-cancel">Cancel</button>
+        <button class="go spacer" id="q-go" disabled>${dir === "in" ? "Add it" : "Take it back"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  const paint = () => {
+    q("#q-go").disabled = !(cents && cents > 0 && cents <= max);
+    q("#q-quick").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(Number(x.dataset.v) === cents)));
+  };
   veil.addEventListener("click", e => {
     if(e.target === veil) return close();
-    const d = e.target.closest("[data-dir]");
-    if(d){ dir = d.dataset.dir; cents = null; q("#m-amt").value = "";
-           veil.querySelectorAll("[data-dir]").forEach(x => x.setAttribute("aria-pressed", String(x === d)));
-           q("#m-confirm").innerHTML = "";
-           delete q("#m-go").dataset.confirmed; q("#m-go").textContent = "Move it";
-           return paint(); }
     const v = e.target.closest("[data-v]");
-    if(v){ cents = Number(v.dataset.v); q("#m-amt").value = (cents/100).toFixed(2); return paint(); }
+    if(v){ cents = Number(v.dataset.v); q("#q-amt").value = (cents/100).toFixed(2); paint(); }
   });
-  q("#m-amt").oninput = e => { cents = Money.parse(e.target.value); paint(); };
-  q("#m-cancel").onclick = close;
-
-  q("#m-go").onclick = () => {
-    // Taking money out of Savings gets a gentle second look — never a scolding.
-    if(dir === "savings" && !q("#m-go").dataset.confirmed){
-      q("#m-confirm").innerHTML = `<div class="note" style="border-style:solid">
-        Sure? Your savings earn a little extra every month, and ${Money.fmt(cents)} is doing that right now.</div>`;
-      q("#m-go").dataset.confirmed = "1";
-      q("#m-go").textContent = "Yes, move it";
-      return;
-    }
-    const res = transfer(STATE, dir, cents);
+  q("#q-amt").oninput = e => { cents = Money.parse(e.target.value); paint(); };
+  q("#q-cancel").onclick = close;
+  q("#q-go").onclick = async () => {
+    const res = dir === "in" ? moveToGoal(STATE, goalId, cents) : takeFromGoal(STATE, goalId, cents);
     if(!res.ok) return toast(res.reason);
-    const amount = cents;
-    close(); save(); render();
-    if(dir === "spending"){
+    close(); await save(); render();
+    if(dir === "in"){
       const r = fromEl ? fromEl.getBoundingClientRect() : { left:innerWidth/2, top:innerHeight/2 };
       celebrate(r.left + 40, r.top);
-      toast(`${Money.fmt(amount)} tucked into Savings. Nice one.`);
-    } else {
-      toast(`${Money.fmt(amount)} moved back to Spending.`);
-    }
+      const now = balances(STATE).goals[goalId] || 0;
+      toast(now >= g.targetCents ? `${g.name}: you've got enough! 🎉` : `${Money.fmt(cents)} towards ${g.name}.`);
+    } else toast(`${Money.fmt(cents)} back to free money.`);
+  };
+}
+
+/* ---- she bought it ---- */
+function buySheet(goalId){
+  const g = STATE.goals.find(x => x.id === goalId);
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <p class="eyebrow">${esc(g.emoji)} ${esc(g.name)}</p>
+      <h2>You did it!</h2>
+      <label class="field"><span class="eyebrow">What did it cost in the end</span>
+        <input id="b-price" inputmode="decimal" value="${(g.targetCents/100).toFixed(2)}"></label>
+      <p class="sub" style="margin-bottom:14px">If it was cheaper, the rest goes back to your free money.</p>
+      <div class="row">
+        <button class="ghost" id="b-cancel">Not yet</button>
+        <button class="go spacer" id="b-go">I bought it</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+  q("#b-cancel").onclick = close;
+  q("#b-go").onclick = async () => {
+    const res = buyGoal(STATE, goalId, Money.parse(q("#b-price").value));
+    if(!res.ok) return toast(res.reason);
+    close(); await save(); render();
+    celebrate(innerWidth/2, innerHeight/3, ["🎉","🎁","⭐","🎉","✨","🎁","⭐","🎉"]);
+    toast(res.leftover ? `Enjoy it! ${Money.fmt(res.leftover)} went back to free money.` : `Enjoy it! 🎉`);
   };
 }
 
 /* ---- log a spend (no PIN — recording is the whole point) ---- */
 function spendSheet(){
-  const floor = -STATE.settings.overdraftLimitCents;
   const veil = document.createElement("div");
   veil.className = "veil";
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
-      <p class="eyebrow">Spending</p>
+      <p class="eyebrow">Free to spend</p>
       <h2>What did you spend?</h2>
       <label class="field"><span class="eyebrow">How much</span>
         <input id="s-amt" inputmode="decimal" placeholder="0.00"></label>
@@ -1347,13 +1466,16 @@ function spendSheet(){
 
   const check = () => {
     const cents = Money.parse(q("#s-amt").value);
-    const after = balances(STATE).spending - (cents || 0);
+    const b = balances(STATE), floor = spendFloor(STATE, b);
+    const after = b.free - (cents || 0);
     if(!cents || cents <= 0){ q("#s-after").textContent = ""; q("#s-go").disabled = true; return; }
     if(after < floor){
-      q("#s-after").textContent = `That's more than you can spend right now — Spending only goes down to ${Money.fmt(floor)}.`;
+      q("#s-after").textContent = b.inGoals > 0
+        ? `You've only got ${Money.fmt(Math.max(0,b.free))} free. Take some back from a goal first.`
+        : `That's more than you have right now.`;
       q("#s-go").disabled = true;
     } else {
-      q("#s-after").textContent = `Spending would be ${Money.fmt(after)} after this.`;
+      q("#s-after").textContent = `${Money.fmt(after)} free after this.`;
       q("#s-go").disabled = false;
     }
   };
@@ -1365,8 +1487,8 @@ function spendSheet(){
     const res = logSpend(STATE, cents, q("#s-note").value);
     if(!res.ok) return toast(res.reason);
     close(); save(); render();
-    toast(res.after < 0 ? `Written down. Spending is ${Money.fmt(res.after)} — it'll catch up next job.`
-                        : `Written down. ${Money.fmt(res.after)} left in Spending.`);
+    toast(res.after < 0 ? `Written down. You're ${Money.fmt(-res.after)} behind — the next job catches it up.`
+                        : `Written down. ${Money.fmt(res.after)} free.`);
   };
 }
 
@@ -1382,35 +1504,24 @@ function addMoneySheet(){
         <input id="a-amt" inputmode="decimal" placeholder="10.00"></label>
       <label class="field"><span class="eyebrow">What for</span>
         <input id="a-note" maxlength="40" placeholder="e.g. birthday money from Nan"></label>
-      <p class="eyebrow">Which pocket</p>
-      <div class="chips" id="a-pool">
-        <button data-pool="spending" aria-pressed="true">Spending</button>
-        <button data-pool="savings" aria-pressed="false">Savings</button>
-      </div>
       <div class="row">
         <button class="ghost" id="a-cancel">Cancel</button>
         <button class="go spacer" id="a-go">Add it</button>
       </div>
     </div>`;
   document.body.appendChild(veil);
-  let pool = "spending";
   const q = s => veil.querySelector(s);
   const close = () => veil.remove();
   q("#a-cancel").onclick = close;
-  veil.addEventListener("click", e => {
-    if(e.target === veil) return close();
-    const p = e.target.closest("[data-pool]");
-    if(p){ pool = p.dataset.pool;
-      veil.querySelectorAll("[data-pool]").forEach(x => x.setAttribute("aria-pressed", String(x === p))); }
-  });
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
   q("#a-amt").focus();
   q("#a-go").onclick = async () => {
     const cents = Money.parse(q("#a-amt").value);
     const note = q("#a-note").value.trim() || "Money from a grown-up";
     if(!cents || cents <= 0) return toast("How much are you adding?");
     close();
-    if(!await requirePin("Confirm the money", `${Money.fmt(cents)} into ${pool === "savings" ? "Savings" : "Spending"}.`)) return;
-    tx(STATE, { type:"manual_credit", amountCents:cents, pool, note });
+    if(!await requirePin("Confirm the money", `${Money.fmt(cents)} added to her money.`)) return;
+    tx(STATE, { type:"manual_credit", amountCents:cents, note });
     await save(); render();
     toast(`${Money.fmt(cents)} added.`);
   };
@@ -1682,9 +1793,7 @@ const hourNow = () => Number(new Intl.DateTimeFormat("en-AU",
 function renderHome(){
   const today = Clock.day(), wd = Clock.weekday(today);
   const b = balances(STATE);
-  const pos = { sp: Math.max(0,b.spending), sv: Math.max(0,b.savings) };
-  const sum = pos.sp + pos.sv;
-  const spPct = sum ? Math.round(pos.sp/sum*100) : 50;
+  const goals = activeGoals(STATE);
   const name = STATE.settings.childName;
   const h = hourNow();
   const hello = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -1704,14 +1813,13 @@ function renderHome(){
     <div class="card" data-goto="money" role="button" tabindex="0" style="cursor:pointer">
       <p class="eyebrow">You have</p>
       <div class="bignum" style="margin-bottom:12px">${Money.fmt(b.total)}</div>
-      ${sum ? `<div class="splitbar" style="height:38px">
-        ${pos.sp ? `<span class="sp num" style="flex:0 0 ${spPct}%">${spPct>=26?Money.fmt(pos.sp):""}</span>` : ""}
-        ${pos.sv ? `<span class="sv num" style="flex:0 0 ${100-spPct}%">${100-spPct>=26?Money.fmt(pos.sv):""}</span>` : ""}
-      </div>` : ""}
-      <div class="row" style="margin-top:10px;font-size:14px">
-        <span class="spacer"><b>Spending</b> ${Money.fmt(b.spending)}</span>
-        <span><b>Savings</b> ${Money.fmt(b.savings)}</span>
-      </div>
+      <div class="row" style="font-size:14px"><span class="spacer"><b>Free to spend</b></span><b class="num">${Money.fmt(b.free)}</b></div>
+      ${goals.map(g => { const have = Math.max(0, b.goals[g.id]||0), full = have >= g.targetCents; return `
+        <div class="row" style="font-size:14px;margin-top:8px">
+          <span style="width:22px;text-align:center">${esc(g.emoji)}</span>
+          <div class="minibar ${full ? "full" : ""}"><i style="width:${Math.min(100, Math.round(have/g.targetCents*100))}%"></i></div>
+          <b class="num" style="min-width:92px;text-align:right">${Money.fmt(have)} / ${Money.fmt(g.targetCents)}</b>
+        </div>`; }).join("")}
     </div>
 
     ${pend.length ? `
@@ -1891,38 +1999,57 @@ function runTests(){
 
   t("Cents stay exact", () => { eq(Money.parse("3.50"),350,"parse"); eq(Money.fmt(-1500),"−$15.00","fmt");
     const s = fresh(); for(let i=0;i<10;i++) tx(s,{type:"chore_payment",amountCents:10});
-    eq(balances(s).spending,100,"sum"); return "10 × 10c = $1.00"; });
+    eq(balances(s).total,100,"sum"); return "10 × 10c = $1.00"; });
   t("Adelaide days and AU dates", () => { eq(Clock.au("2026-08-09"),"9/8/2026","fmt");
     eq(Clock.weekStart("2026-08-09"),"2026-08-03","week"); return "weeks start Monday"; });
   t("Claiming pays nothing until approved", () => { const s = fresh(); claimChore(s,"chore_dish");
-    eq(balances(s).spending,0,"before"); approveClaims(s,[s.claims[0].id]);
-    eq(balances(s).spending,50,"after"); return "50c lands only on approval"; });
+    eq(balances(s).total,0,"before"); approveClaims(s,[s.claims[0].id]);
+    eq(balances(s).free,50,"after"); return "50c lands only on approval"; });
   t("Not approved = no money, note kept", () => { const s = fresh(); claimChore(s,"chore_plant");
-    rejectClaims(s,[s.claims[0].id],"Back pots were dry"); eq(balances(s).spending,0,"balance");
+    rejectClaims(s,[s.claims[0].id],"Back pots were dry"); eq(balances(s).total,0,"balance");
     eq(s.claims[0].parentNote,"Back pots were dry","note"); return "balance untouched"; });
   t("Same job twice a day both queue", () => { const s = fresh();
     claimChore(s,"chore_dish"); claimChore(s,"chore_dish"); eq(pendingClaims(s).length,2,"queue");
     return "yours to sort out"; });
-  t("Spending floor holds at −$15", () => { const s = fresh();
+  t("Free money floor holds at −$15 (no goals)", () => { const s = fresh();
     tx(s,{type:"chore_payment",amountCents:500}); eq(logSpend(s,2000,"Lego").ok,true,"allowed");
-    eq(balances(s).spending,-1500,"floor"); eq(logSpend(s,1,"more").ok,false,"blocked");
+    eq(balances(s).free,-1500,"floor"); eq(logSpend(s,1,"more").ok,false,"blocked");
     return "$5 in, $20 out, stops dead at −$15"; });
-  t("Moving money invents none", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:1000});
-    transfer(s,"spending",400); eq(balances(s).total,1000,"total"); eq(balances(s).savings,400,"savings");
-    return "$10 split 6/4"; });
+  t("Goals hold money without inventing any", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:1000});
+    const g = addGoal(s,{name:"Lip balm",emoji:"💄",targetCents:1000}).goal;
+    moveToGoal(s,g.id,400); const b = balances(s);
+    eq(b.total,1000,"total"); eq(b.goals[g.id],400,"goal"); eq(b.free,600,"free");
+    eq(moveToGoal(s,g.id,700).ok,false,"can't add more than is free");
+    takeFromGoal(s,g.id,100); eq(balances(s).free,700,"taken back");
+    return "$10: $6 free + $4 in a goal"; });
+  t("Spending can't raid a goal", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:500});
+    const g = addGoal(s,{name:"Squishie",targetCents:500}).goal; moveToGoal(s,g.id,500);
+    eq(logSpend(s,100,"lolly").ok,false,"blocked while goal has money");
+    takeFromGoal(s,g.id,100); eq(logSpend(s,100,"lolly").ok,true,"fine once taken back");
+    return "take it back first, then spend"; });
+  t("Buying a goal spends it and frees the rest", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:1200});
+    const g = addGoal(s,{name:"Lip balm",targetCents:1000}).goal; moveToGoal(s,g.id,1000);
+    const r = buyGoal(s,g.id,950); eq(r.leftover,50,"leftover"); const b = balances(s);
+    eq(b.total,250,"total"); eq(b.inGoals,0,"goal empty"); eq(b.free,250,"free"); eq(g.status,"bought","done");
+    return "$10 saved, cost $9.50, 50c back"; });
+  t("v1 data keeps its total", () => { const s = fresh();
+    tx(s,{type:"chore_payment",amountCents:500,pool:"spending"}); tx(s,{type:"transfer",from:"spending",amountCents:300});
+    tx(s,{type:"spend",amountCents:400,pool:"spending"});
+    eq(balances(s).total,100,"old Spending −$1 + Savings $3 = $1"); eq(balances(s).free,100,"all free");
+    return "old pockets fold into one balance"; });
   t("Missed months compound on open", () => { const s = fresh();
     tx(s,{type:"manual_credit",amountCents:10000,pool:"savings"}); s.interest.lastCreditedMonth = "2026-04";
-    eq(applyInterest(s,"2026-07-15").length,3,"months"); eq(balances(s).savings,10100,"balance");
+    eq(applyInterest(s,"2026-07-15").length,3,"months"); eq(balances(s).total,10100,"balance");
     eq(applyInterest(s,"2026-07-20").length,0,"no repeat"); return "$100 → 33c + 33c + 34c"; });
   t("Chart is rebuilt from the ledger", () => { const s = fresh();
-    tx(s,{type:"manual_credit",amountCents:1000,pool:"savings",day:"2026-06-01"});
-    tx(s,{type:"transfer",from:"spending",amountCents:500,day:"2026-06-10"});
-    tx(s,{type:"transfer",from:"savings",amountCents:200,day:"2026-06-20"});
-    const p = savingsSeries(s);
+    tx(s,{type:"manual_credit",amountCents:1000,day:"2026-06-01"});
+    tx(s,{type:"chore_payment",amountCents:500,day:"2026-06-10"});
+    tx(s,{type:"spend",amountCents:200,day:"2026-06-20"});
+    const p = moneySeries(s);
     eq(p[0].cents,0,"starts at zero");
     eq(p[p.length-1].cents,1300,"ends at balance");
-    eq(p[p.length-1].cents,balances(s).savings,"matches the pool");
-    return "$10 in, $5 across, $2 back = $13, line and balance agree"; });
+    eq(p[p.length-1].cents,balances(s).total,"matches the balance");
+    return "$10 in, $5 job, $2 spent = $13, line and balance agree"; });
   t("A new day clears the ticks by itself", () => { const s = fresh();
     const y = numDay(dayNum(Clock.day()) - 1);
     s.habits.done[y] = { h_teeth_am:true };
