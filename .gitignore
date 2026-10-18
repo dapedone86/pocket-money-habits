@@ -1,0 +1,10 @@
+# Never commit real app data: backups hold the child's name, full history and the PIN hash
+*backup*.json
+pocket-money-backup-*.json
+backups/
+
+# OS and editor clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/

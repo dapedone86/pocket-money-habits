@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Money</title>
+<meta name="theme-color" content="#F3EDFF">
+<meta name="description" content="Pocket money and habits, for one kid, on one phone.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pocket">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="color-scheme" content="light">
+<style>
+  :root{
+    --paper:#F3EDFF; --ink:#2C2140; --card:#FFFFFF; --muted:#6B5F86;
+    --mango:#FFB020; --watermelon:#FF5D73; --lime:#3ECF8E; --blueberry:#4C6FFF;
+    --r-lg:22px; --r-md:14px; --r-sm:10px;
+    --line:3px solid var(--ink);
+    --pop:0 4px 0 var(--ink); --pop-lg:0 6px 0 var(--ink);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:16px; line-height:1.45; -webkit-tap-highlight-color:transparent;
+    overscroll-behavior-y:contain;
+  }
+  #app{
+    max-width:560px; margin:0 auto;
+    padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 104px);
+  }
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  h1{font-size:30px;line-height:1.05;font-weight:900;letter-spacing:-.02em;margin:0 0 4px}
+  h2{font-size:19px;font-weight:900;letter-spacing:-.01em;margin:0 0 10px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px}
+  .num{font-variant-numeric:tabular-nums}
+
+  .card{background:var(--card);border:var(--line);border-radius:var(--r-lg);box-shadow:var(--pop-lg);padding:16px;margin:0 0 16px}
+  .row{display:flex;align-items:center;gap:10px}
+  .spacer{flex:1}
+
+  button{
+    font:inherit;font-weight:800;color:var(--ink);cursor:pointer;
+    background:var(--mango);border:var(--line);border-radius:var(--r-md);box-shadow:var(--pop);
+    padding:12px 16px;min-height:48px;transition:transform .08s ease,box-shadow .08s ease;
+  }
+  button:active{transform:translateY(4px);box-shadow:0 0 0 var(--ink)}
+  button:focus-visible{outline:3px solid var(--blueberry);outline-offset:3px}
+  button:disabled{opacity:.45;box-shadow:none;transform:none;cursor:default}
+  .ghost{background:var(--card)}
+  .go{background:var(--lime)}
+  .no{background:var(--watermelon);color:#fff}
+  .tiny{min-height:38px;padding:6px 12px;font-size:13px;border-width:2px;box-shadow:0 3px 0 var(--ink);border-radius:var(--r-sm)}
+
+  input,select{
+    font:inherit;font-weight:700;color:var(--ink);background:var(--card);
+    border:var(--line);border-radius:var(--r-md);padding:11px 13px;width:100%;min-height:48px;
+  }
+  input:focus,select:focus{outline:3px solid var(--blueberry);outline-offset:2px}
+  label.field{display:block;margin:0 0 12px}
+  label.field .eyebrow{margin-bottom:5px}
+
+  /* ---- chore tiles: the thing she taps ---- */
+  .chore{
+    display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+    background:var(--card);border:var(--line);border-radius:var(--r-lg);box-shadow:var(--pop-lg);
+    padding:14px;margin:0 0 12px;min-height:76px;position:relative;overflow:visible;
+  }
+  .chore .face{
+    width:52px;height:52px;flex:none;display:grid;place-items:center;font-size:27px;
+    border:var(--line);border-radius:16px;background:var(--paper);
+  }
+  .chore .name{font-size:17px;font-weight:900;line-height:1.2}
+  .chore .pay{
+    font-weight:900;font-size:17px;border:var(--line);border-radius:999px;
+    padding:5px 12px;background:var(--mango);flex:none;
+  }
+  .chore.tapped{animation:squish .32s ease}
+  @keyframes squish{0%{transform:none}35%{transform:scale(.95) rotate(-1.2deg)}100%{transform:none}}
+
+  .coin{
+    position:fixed;z-index:60;pointer-events:none;font-weight:900;font-size:18px;
+    background:var(--mango);border:var(--line);border-radius:999px;padding:5px 12px;
+    animation:fly 1s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes fly{0%{opacity:0;transform:translateY(6px) scale(.7)}
+    18%{opacity:1;transform:translateY(-10px) scale(1.08)}
+    100%{opacity:0;transform:translateY(-84px) scale(.9)}}
+
+  .queued{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:2px dotted #DDD3F0}
+  .queued:last-child{border-bottom:0}
+  .queued .when{color:var(--muted);font-size:13px;font-weight:700}
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;border:2px solid var(--ink);border-radius:999px;
+    padding:3px 10px;font-size:12px;font-weight:800;background:var(--card);white-space:nowrap;
+  }
+  .badge.wait{background:var(--paper)}
+  .badge.paid{background:var(--lime)}
+  .badge.nope{background:#FFE1E6}
+  .note{
+    background:var(--paper);border:2px dashed var(--ink);border-radius:var(--r-md);
+    padding:9px 12px;font-size:14px;margin:8px 0 0;
+  }
+
+  .empty{text-align:center;padding:26px 14px;color:var(--muted)}
+  .empty .big{font-size:38px;display:block;margin-bottom:8px}
+
+  /* ---- bottom nav ---- */
+  nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);
+    background:linear-gradient(to top,var(--paper) 72%,rgba(243,237,255,0));
+  }
+  nav .bar{
+    display:flex;gap:2px;max-width:528px;margin:0 auto;
+    background:var(--card);border:var(--line);border-radius:999px;box-shadow:var(--pop-lg);padding:5px;
+  }
+  nav button{
+    flex:1;position:relative;background:transparent;border:0;box-shadow:none;border-radius:999px;
+    min-height:54px;font-size:11px;font-weight:800;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;padding:2px;letter-spacing:-.01em;
+  }
+  nav button:active{transform:none}
+  nav button .ic{font-size:19px;line-height:1}
+  nav button[aria-current="page"]{background:var(--blueberry);color:#fff}
+  nav .dot{
+    position:absolute;top:2px;right:8px;background:var(--watermelon);color:#fff;
+    border:2px solid var(--ink);border-radius:999px;font-size:10px;padding:0 5px;line-height:16px;
+  }
+
+  /* ---- modal + keypad ---- */
+  .veil{position:fixed;inset:0;background:rgba(44,33,64,.55);z-index:80;display:grid;place-items:end center;padding:16px}
+  .sheet{
+    background:var(--card);border:var(--line);border-radius:26px;box-shadow:var(--pop-lg);
+    padding:20px;width:100%;max-width:400px;margin-bottom:env(safe-area-inset-bottom);
+    animation:rise .22s ease;
+  }
+  @keyframes rise{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+  .dots{display:flex;gap:12px;justify-content:center;margin:16px 0 18px}
+  .dots i{width:18px;height:18px;border:var(--line);border-radius:999px;background:var(--card)}
+  .dots i.on{background:var(--ink)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pad button{font-size:24px;font-weight:900;min-height:60px;background:var(--paper)}
+  .pad button.wide{grid-column:span 1;font-size:15px}
+  .err{color:#C21E3F;font-weight:800;text-align:center;min-height:22px;margin:0 0 4px;font-size:14px}
+
+  .toast{
+    position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 96px);z-index:90;
+    max-width:528px;margin:0 auto;background:var(--ink);color:#fff;border-radius:var(--r-md);
+    padding:13px 16px;font-weight:800;box-shadow:var(--pop);animation:rise .2s ease;
+  }
+
+  .check{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:2px dotted #DDD3F0;cursor:pointer}
+  .check:last-of-type{border-bottom:0}
+  .check input{width:26px;height:26px;min-height:0;flex:none;accent-color:var(--blueberry)}
+  details summary{font-weight:800;cursor:pointer;padding:8px 0;font-size:14px}
+  .test{display:flex;gap:9px;padding:6px 0;font-size:13px;align-items:flex-start}
+  .test .m{font-weight:900;flex:none}
+  .test .m.p{color:#149A5E} .test .m.f{color:#D6274A}
+  /* ---- icon picker ---- */
+  .emoji-grid{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-height:172px;overflow-y:auto;
+    border:var(--line);border-radius:var(--r-md);padding:8px;background:var(--paper);
+    -webkit-overflow-scrolling:touch;
+  }
+  .emoji-grid button{
+    min-height:46px;padding:0;font-size:23px;background:var(--card);
+    border:2px solid transparent;box-shadow:none;border-radius:11px;
+  }
+  .emoji-grid button[aria-pressed="true"]{border-color:var(--ink);background:var(--mango);box-shadow:0 3px 0 var(--ink)}
+
+  /* ---- money ---- */
+  .splitbar{
+    display:flex;height:48px;border:var(--line);border-radius:999px;overflow:hidden;
+    box-shadow:var(--pop);background:var(--card);margin:0 0 8px;
+  }
+  .splitbar span{
+    display:grid;place-items:center;font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;
+    transition:flex-basis .55s cubic-bezier(.2,.8,.2,1);
+  }
+  .splitbar .sp{background:var(--mango)}
+  .splitbar .sv{background:var(--blueberry);color:#fff}
+  .splitbar .sv:not(:first-child){border-left:var(--line)}
+  .legend{display:flex;gap:14px;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 18px}
+  .legend i{width:11px;height:11px;border:2px solid var(--ink);border-radius:3px;display:inline-block;margin-right:5px}
+
+  .pools{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 16px}
+  .pool{border:var(--line);border-radius:var(--r-lg);box-shadow:var(--pop-lg);padding:14px}
+  .pool.sp{background:#FFF4DF}
+  .pool.sv{background:#E9EEFF}
+  .pool .amt{font-size:25px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .pool .cap{font-size:12px;font-weight:800;color:var(--muted);margin-top:2px}
+
+  .txn{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:2px dotted #DDD3F0}
+  .txn:last-child{border-bottom:0}
+  .txn .ic{font-size:20px;width:26px;flex:none;text-align:center}
+  .txn .amt{font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .txn .amt.plus{color:#0F7A48}
+  .daygroup{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:16px 0 0}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+  .chips button{min-height:44px;padding:8px 15px;background:var(--paper);border-width:2px;box-shadow:0 3px 0 var(--ink)}
+  .chips button[aria-pressed="true"]{background:var(--lime)}
+
+  .burst{position:fixed;z-index:70;pointer-events:none;font-size:24px;animation:burst .95s ease-out forwards}
+  @keyframes burst{
+    0%{opacity:0;transform:translate(0,0) scale(.4)}
+    18%{opacity:1}
+    100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.15)}}
+
+  .chart{margin:6px 0 4px}
+  .chart svg{display:block;width:100%;height:auto;overflow:visible}
+  .chart .line{fill:none;stroke:var(--ink);stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round}
+  .chart .area{fill:var(--blueberry);opacity:.22}
+  .chart .grid{stroke:#DDD3F0;stroke-width:2;stroke-dasharray:3 5}
+  .chart .tick{font-size:10px;font-weight:800;fill:var(--muted)}
+  .chart .head{font-size:11px;font-weight:900;fill:var(--ink)}
+  .chart .knob{fill:var(--mango);stroke:var(--ink);stroke-width:3}
+  .draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 1.1s ease-out forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  .bignum{font-size:44px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+
+  /* ---- habits ---- */
+  .habit{
+    display:flex;align-items:center;gap:13px;width:100%;text-align:left;
+    background:var(--card);border:var(--line);border-radius:var(--r-lg);box-shadow:var(--pop);
+    padding:12px 14px;margin:0 0 10px;min-height:64px;
+  }
+  .habit.on{background:#E4FBEF}
+  .habit .tick{
+    width:42px;height:42px;flex:none;border:var(--line);border-radius:13px;background:var(--paper);
+    display:grid;place-items:center;font-size:21px;
+  }
+  .habit .tick .k{display:none;font-size:23px}
+  .habit.on .tick{background:var(--lime);animation:pop .34s ease}
+  .habit.on .tick .i{display:none}
+  .habit.on .tick .k{display:block}
+  @keyframes pop{0%{transform:scale(.7)}55%{transform:scale(1.22) rotate(-6deg)}100%{transform:scale(1)}}
+  .habit .hname{font-size:16px;font-weight:900;line-height:1.2}
+  .habit .hwhen{font-size:12px;font-weight:800;color:var(--muted)}
+  .streak{
+    border:2px solid var(--ink);border-radius:999px;padding:3px 9px;font-size:12px;font-weight:900;
+    background:var(--mango);white-space:nowrap;flex:none;
+  }
+  .grouphead{display:flex;align-items:center;gap:8px;margin:20px 0 10px;font-size:15px;font-weight:900}
+  .grouphead .n{font-size:12px;color:var(--muted);font-weight:800}
+  .weekstrip{display:flex;gap:5px;margin-top:7px}
+  .weekstrip b{
+    width:27px;height:27px;border-radius:9px;font-size:11px;font-weight:900;
+    display:grid;place-items:center;
+    border:2px dashed #CFC4E6;background:transparent;color:#B4A6CF;   /* days it isn't on */
+  }
+  .weekstrip b.due{border:3px solid var(--ink);background:var(--mango);color:var(--ink)}
+  .weekstrip b.done{border:3px solid var(--ink);background:var(--lime);color:var(--ink)}
+  .weekstrip b.today{box-shadow:0 0 0 3px var(--blueberry)}
+  .prog{height:14px;border:var(--line);border-radius:999px;background:var(--card);overflow:hidden;box-shadow:var(--pop)}
+  .prog i{display:block;height:100%;background:var(--lime);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .daypick{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .daypick button{min-height:46px;width:46px;padding:0;font-size:13px;background:var(--paper);border-width:2px;box-shadow:0 3px 0 var(--ink)}
+  .daypick button[aria-pressed="true"]{background:var(--lime)}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav" hidden><div class="bar"></div></nav>
+
+<script>
+"use strict";
+/* =========================================================================
+   POCKET MONEY & HABITS
+   Stage 1: data model + storage      Stage 2: chores, queue, PIN approval
+   ========================================================================= */
+
+const TZ = "Australia/Adelaide";
+const STORAGE_KEY = "pmh:state:v1";
+const SCHEMA_VERSION = 1;
+
+/* ---------------------------------------------------------------- money */
+const Money = {
+  fmt(cents){
+    const neg = cents < 0, v = Math.abs(cents);
+    return (neg ? "−" : "") + "$" + Math.floor(v/100) + "." + String(v%100).padStart(2,"0");
+  },
+  parse(text){
+    if(text === null || text === undefined) return null;
+    const m = String(text).replace(/[^0-9.]/g,"");
+    if(m === "" || (m.match(/\./g)||[]).length > 1) return null;
+    const [whole, frac=""] = m.split(".");
+    const cents = Number(whole||"0")*100 + Number((frac+"00").slice(0,2));
+    return Number.isFinite(cents) ? cents : null;
+  }
+};
+
+/* ---------------------------------------------------------------- dates */
+const Clock = {
+  now(){ return new Date(); },
+  day(d = new Date()){
+    return new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  },
+  month(d = new Date()){ return Clock.day(d).slice(0,7); },
+  au(dayStr){ const [y,m,d] = dayStr.split("-"); return `${Number(d)}/${Number(m)}/${y}`; },
+  weekday(dayStr){
+    const [y,m,d] = dayStr.split("-").map(Number);
+    const wd = new Date(Date.UTC(y,m-1,d)).getUTCDay();
+    return wd === 0 ? 7 : wd;
+  },
+  weekStart(dayStr){
+    const [y,m,d] = dayStr.split("-").map(Number);
+    const t = new Date(Date.UTC(y,m-1,d));
+    t.setUTCDate(t.getUTCDate() - (Clock.weekday(dayStr)-1));
+    return t.toISOString().slice(0,10);
+  },
+  nextMonth(k){ let [y,m] = k.split("-").map(Number); m++; if(m>12){m=1;y++;} return `${y}-${String(m).padStart(2,"0")}`; },
+  monthsBetween(fromExc, toInc){
+    const out = []; let cur = Clock.nextMonth(fromExc), g = 0;
+    while(cur <= toInc && g++ < 600){ out.push(cur); cur = Clock.nextMonth(cur); }
+    return out;
+  },
+  /** "Today" / "Yesterday" / "Thu 6/8" — how she reads dates. */
+  friendly(dayStr){
+    const today = Clock.day();
+    if(dayStr === today) return "Today";
+    const [y,m,d] = today.split("-").map(Number);
+    const yest = new Date(Date.UTC(y,m-1,d)); yest.setUTCDate(yest.getUTCDate()-1);
+    if(dayStr === yest.toISOString().slice(0,10)) return "Yesterday";
+    const names = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const [yy,mm,dd] = dayStr.split("-");
+    return `${names[Clock.weekday(dayStr)-1]} ${Number(dd)}/${Number(mm)}`;
+  }
+};
+
+/* -------------------------------------------------------------- storage */
+const Storage = (() => {
+  const artifact = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+  let memory = null;
+  let backend = artifact ? "artifact" : "localStorage";
+
+  async function rawGet(){
+    if(artifact){
+      try{ const r = await window.storage.get(STORAGE_KEY); return r ? r.value : null; }
+      catch(e){ return null; }
+    }
+    try{ return localStorage.getItem(STORAGE_KEY); }
+    catch(e){ backend = "memory"; return memory; }
+  }
+  async function rawSet(str){
+    if(artifact){ await window.storage.set(STORAGE_KEY, str); memory = str; return; }
+    try{ localStorage.setItem(STORAGE_KEY, str); }catch(e){ backend = "memory"; }
+    memory = str;
+  }
+  async function rawClear(){
+    if(artifact){ try{ await window.storage.delete(STORAGE_KEY); }catch(e){} }
+    else { try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} }
+    memory = null;
+  }
+  let chain = Promise.resolve();
+  return {
+    get backend(){ return backend; },
+    async load(){
+      const str = await rawGet();
+      if(!str) return null;
+      try{ return migrate(JSON.parse(str)); }
+      catch(e){ console.warn("State unreadable", e); return null; }
+    },
+    save(state){
+      const str = JSON.stringify(state);
+      chain = chain.then(() => rawSet(str)).catch(e => console.warn("Save failed", e));
+      return chain;
+    },
+    async clear(){ await rawClear(); }
+  };
+})();
+
+function migrate(state){
+  if(!state || typeof state !== "object") throw new Error("not an object");
+  if(state.version !== SCHEMA_VERSION) state = { ...seedState(), ...state, version: SCHEMA_VERSION };
+  const base = seedState();
+  state.settings = { ...base.settings, ...(state.settings||{}) };
+  state.security = { ...base.security, ...(state.security||{}) };
+  state.interest = { ...base.interest, ...(state.interest||{}) };
+  state.habits   = { ...base.habits,   ...(state.habits||{}) };
+  for(const k of ["chores","claims","transactions"]) if(!Array.isArray(state[k])) state[k] = base[k];
+  // habits gained icons in stage 6 — give older saves sensible ones
+  const guess = { h_teeth_am:"🪥", h_teeth_pm:"🪥", h_cream:"🧴", h_shower:"🚿" };
+  for(const list of [state.habits.daily, state.habits.weekly])
+    if(Array.isArray(list)) list.forEach(h => { if(!h.emoji) h.emoji = guess[h.id] || "⭐"; });
+  return state;
+}
+
+let seq = 0;
+const uid = p => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2,6)}`;
+
+function seedState(){
+  return {
+    version: SCHEMA_VERSION,
+    createdAt: new Date().toISOString(),
+    settings: { childName:null, currency:"AUD", timeZone:TZ, interestRateBps:400, overdraftLimitCents:1500 },
+    security: { pinHash:null, pinSalt:null, algo:null, failedAttempts:0, lockedUntil:null },
+    chores: [
+      { id:"chore_dish",  name:"Empty the dishwasher", payCents:50, emoji:"🍽️", active:true, order:1 },
+      { id:"chore_plant", name:"Water the plants",     payCents:20, emoji:"🪴", active:true, order:2 },
+      { id:"chore_cloth", name:"Put clothes away",     payCents:30, emoji:"👕", active:true, order:3 }
+    ],
+    claims: [],
+    transactions: [],
+    interest: { lastCreditedMonth: Clock.month(), totalEarnedCents:0 },
+    habits: {
+      daily: [
+        { id:"h_teeth_am", name:"Brush teeth",  emoji:"🪥", timeOfDay:"morning", order:1 },
+        { id:"h_teeth_pm", name:"Brush teeth",  emoji:"🪥", timeOfDay:"night",   order:2 },
+        { id:"h_cream",    name:"Put cream on", emoji:"🧴", timeOfDay:"night",   order:3 }
+      ],
+      weekly: [ { id:"h_shower", name:"Shower", emoji:"🚿", days:[1,4], order:1 } ],
+      done: {}, streaks: {}
+    },
+    lastOpenedDay: Clock.day()
+  };
+}
+
+/* --------------------------------------------------------------- ledger */
+function tx(state, entry){
+  const t = { id:uid("tx"), day:entry.day||Clock.day(), at:entry.at||new Date().toISOString(),
+              n:state.transactions.length, ...entry };
+  state.transactions.push(t);
+  return t;
+}
+function balances(state){
+  let spending = 0, savings = 0;
+  for(const t of state.transactions){
+    switch(t.type){
+      case "chore_payment": spending += t.amountCents; break;
+      case "manual_credit": t.pool === "savings" ? savings += t.amountCents : spending += t.amountCents; break;
+      case "spend":         spending -= t.amountCents; break;
+      case "interest":      savings  += t.amountCents; break;
+      case "transfer":
+        if(t.from === "spending"){ spending -= t.amountCents; savings += t.amountCents; }
+        else { savings -= t.amountCents; spending += t.amountCents; }
+        break;
+    }
+  }
+  return { spending, savings, total: spending + savings };
+}
+const history = s => s.transactions.slice().sort((a,b) => b.day.localeCompare(a.day) || b.n - a.n);
+
+/* --------------------------------------------------------------- chores */
+function claimChore(state, choreId){
+  const chore = state.chores.find(c => c.id === choreId && c.active);
+  if(!chore) return { ok:false, reason:"That chore isn't on the list any more." };
+  const claim = { id:uid("cl"), choreId:chore.id, choreName:chore.name, payCents:chore.payCents,
+                  emoji:chore.emoji, day:Clock.day(), at:new Date().toISOString(),
+                  status:"pending", decidedAt:null, parentNote:null };
+  state.claims.push(claim);
+  return { ok:true, claim };
+}
+const pendingClaims = s => s.claims.filter(c => c.status === "pending")
+  .sort((a,b) => a.day.localeCompare(b.day) || a.at.localeCompare(b.at));
+
+function approveClaims(state, ids){
+  let paid = 0, count = 0;
+  for(const id of ids){
+    const c = state.claims.find(x => x.id === id && x.status === "pending");
+    if(!c) continue;
+    c.status = "approved"; c.decidedAt = new Date().toISOString();
+    tx(state, { type:"chore_payment", amountCents:c.payCents, pool:"spending",
+                note:c.choreName, claimId:c.id, day:c.day });
+    paid += c.payCents; count++;
+  }
+  return { count, paidCents: paid };
+}
+function rejectClaims(state, ids, parentNote){
+  let count = 0;
+  for(const id of ids){
+    const c = state.claims.find(x => x.id === id && x.status === "pending");
+    if(!c) continue;
+    c.status = "rejected"; c.decidedAt = new Date().toISOString();
+    c.parentNote = (parentNote||"").trim() || null; count++;
+  }
+  return { count };
+}
+/** Decisions from the last 7 days — so she sees what happened, then it clears. */
+function recentDecisions(state){
+  const cutoff = Date.now() - 7*864e5;
+  return state.claims.filter(c => c.status !== "pending" && c.decidedAt && new Date(c.decidedAt) > cutoff)
+    .sort((a,b) => b.decidedAt.localeCompare(a.decidedAt));
+}
+
+/* ---------------------------------------------------------- her actions */
+function logSpend(state, amountCents, note){
+  if(!Number.isInteger(amountCents) || amountCents <= 0) return { ok:false, reason:"Type in how much you spent." };
+  const floor = -state.settings.overdraftLimitCents;
+  const after = balances(state).spending - amountCents;
+  if(after < floor) return { ok:false, reason:`That would take Spending past ${Money.fmt(floor)}. Try a smaller amount.` };
+  tx(state, { type:"spend", amountCents, pool:"spending", note:(note||"").trim() || "Something" });
+  return { ok:true, after };
+}
+function transfer(state, from, amountCents){
+  const b = balances(state);
+  if(!Number.isInteger(amountCents) || amountCents <= 0) return { ok:false, reason:"Pick an amount first." };
+  if(from === "savings"  && amountCents > b.savings)  return { ok:false, reason:"Savings hasn't got that much." };
+  if(from === "spending" && amountCents > b.spending) return { ok:false, reason:"Spending hasn't got that much." };
+  tx(state, { type:"transfer", from, to: from==="savings" ? "spending" : "savings", amountCents,
+              note: from==="savings" ? "Moved to Spending" : "Moved to Savings" });
+  return { ok:true };
+}
+
+/* -------------------------------------------------------------- interest */
+function applyInterest(state, nowDay = Clock.day()){
+  const owed = Clock.monthsBetween(state.interest.lastCreditedMonth, nowDay.slice(0,7));
+  const credits = [];
+  for(const monthKey of owed){
+    const savings = balances(state).savings;
+    const amount = Math.max(0, Math.round(savings * state.settings.interestRateBps / 10000 / 12));
+    if(amount > 0){
+      tx(state, { type:"interest", amountCents:amount, pool:"savings", note:"Interest",
+                  day:`${monthKey}-01`, at:new Date(`${monthKey}-01T00:00:00Z`).toISOString(), monthKey });
+      state.interest.totalEarnedCents += amount;
+      credits.push({ monthKey, amount });
+    }
+    state.interest.lastCreditedMonth = monthKey;
+  }
+  return credits;
+}
+
+/* ------------------------------------------------------------------ PIN */
+const Pin = {
+  async hash(pin, salt){
+    const data = new TextEncoder().encode(salt + ":" + pin);
+    if(self.crypto && crypto.subtle && crypto.subtle.digest){
+      const buf = await crypto.subtle.digest("SHA-256", data);
+      return { algo:"sha256", hex:[...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,"0")).join("") };
+    }
+    let h1 = 0x811c9dc5, h2 = 0x01000193;
+    for(const b of data){ h1 = Math.imul(h1^b,16777619)>>>0; h2 = Math.imul(h2+b,2246822519)>>>0; }
+    return { algo:"fnv", hex:(h1>>>0).toString(16).padStart(8,"0")+(h2>>>0).toString(16).padStart(8,"0") };
+  },
+  valid: p => /^\d{4}$/.test(p),
+  rand(n){
+    const a = new Uint8Array(n);
+    (self.crypto && crypto.getRandomValues) ? crypto.getRandomValues(a) : a.forEach((_,i)=>a[i]=Math.random()*256|0);
+    return [...a].map(b => b.toString(16).padStart(2,"0")).join("");
+  },
+  async set(state, pin){
+    if(!Pin.valid(pin)) return { ok:false, reason:"The PIN needs to be 4 digits." };
+    const salt = Pin.rand(8);
+    const { algo, hex } = await Pin.hash(pin, salt);
+    state.security = { pinHash:hex, pinSalt:salt, algo, failedAttempts:0, lockedUntil:null };
+    return { ok:true };
+  },
+  lockedFor(state){
+    const u = state.security.lockedUntil;
+    return u ? Math.max(0, Math.ceil((new Date(u) - Date.now())/1000)) : 0;
+  },
+  async check(state, pin){
+    const wait = Pin.lockedFor(state);
+    if(wait) return { ok:false, reason:`Too many tries. Wait ${wait}s.` };
+    if(!state.security.pinHash) return { ok:false, reason:"No PIN set yet." };
+    const { hex } = await Pin.hash(pin, state.security.pinSalt);
+    if(hex === state.security.pinHash){
+      state.security.failedAttempts = 0; state.security.lockedUntil = null;
+      return { ok:true };
+    }
+    state.security.failedAttempts++;
+    if(state.security.failedAttempts >= 5){
+      state.security.lockedUntil = new Date(Date.now()+60000).toISOString();
+      state.security.failedAttempts = 0;
+      return { ok:false, reason:"Too many tries. Locked for 60 seconds." };
+    }
+    return { ok:false, reason:"Wrong PIN. Try again." };
+  }
+};
+
+/* ======================================================================== */
+/*  UI                                                                       */
+/* ======================================================================== */
+let STATE = null;
+let VIEW = "home";
+let PARENT_UNLOCKED = false;      // cleared the moment you leave the Parent screen
+const app = document.getElementById("app");
+const nav = document.getElementById("nav");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const save = () => Storage.save(STATE);
+
+function toast(msg, ms = 2200){
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg; el.setAttribute("role","status");
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+/* ---- PIN keypad sheet: resolves to the 4 digits, or null if cancelled ---- */
+function askPin({ title, subtitle }){
+  return new Promise(resolve => {
+    let entry = "";
+    const veil = document.createElement("div");
+    veil.className = "veil";
+    veil.innerHTML = `
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <p class="eyebrow" style="margin-bottom:2px">Parent</p>
+        <h2 style="margin-bottom:4px">${esc(title)}</h2>
+        <p class="sub" style="margin-bottom:0">${esc(subtitle||"")}</p>
+        <div class="dots">${"<i></i>".repeat(4)}</div>
+        <p class="err" id="pin-err"></p>
+        <div class="pad">
+          ${[1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join("")}
+          <button class="wide ghost" data-k="cancel">Cancel</button>
+          <button data-k="0">0</button>
+          <button class="wide ghost" data-k="del">Delete</button>
+        </div>
+      </div>`;
+    const dots = () => veil.querySelectorAll(".dots i").forEach((d,i) => d.classList.toggle("on", i < entry.length));
+    const close = v => { veil.remove(); document.removeEventListener("keydown", key); resolve(v); };
+    const push = k => {
+      if(k === "cancel") return close(null);
+      if(k === "del"){ entry = entry.slice(0,-1); return dots(); }
+      if(entry.length >= 4) return;
+      entry += k; dots();
+      if(entry.length === 4) setTimeout(() => close(entry), 130);
+    };
+    veil.addEventListener("click", e => {
+      const b = e.target.closest("button[data-k]");
+      if(b) push(b.dataset.k);
+      else if(e.target === veil) close(null);
+    });
+    const key = e => {
+      if(/^\d$/.test(e.key)) push(e.key);
+      else if(e.key === "Backspace") push("del");
+      else if(e.key === "Escape") push("cancel");
+    };
+    document.addEventListener("keydown", key);
+    document.body.appendChild(veil);
+    veil.querySelector(".pad button").focus();
+  });
+}
+
+/** Ask, verify, and complain if wrong. Returns true only on a correct PIN. */
+async function requirePin(title, subtitle){
+  const pin = await askPin({ title, subtitle });
+  if(pin === null) return false;
+  const res = await Pin.check(STATE, pin);
+  await save();
+  if(!res.ok){ toast(res.reason); return false; }
+  return true;
+}
+
+/* --------------------------------------------------------- first launch */
+function renderSetup(){
+  nav.hidden = true;
+  app.innerHTML = `
+    <p class="eyebrow">Setting up</p>
+    <h1>Pocket money</h1>
+    <p class="sub">A quick setup, just for the parent. Two things and you're done.</p>
+    <div class="card">
+      <label class="field">
+        <span class="eyebrow">Her name</span>
+        <input id="kid-name" placeholder="e.g. Ruby" autocomplete="off" maxlength="20">
+      </label>
+      <p class="sub" style="margin-bottom:14px">Used for the greeting on the home screen. You can change it later.</p>
+      <button class="go" id="go-pin" style="width:100%">Choose a 4-digit PIN</button>
+    </div>
+    <div class="card" style="background:var(--paper)">
+      <h2>What the PIN protects</h2>
+      <p style="margin:0;font-size:14px">Approving chores, adding money, changing what a chore pays, the interest rate, and resetting data. She can do everything else on her own.</p>
+    </div>`;
+  document.getElementById("go-pin").onclick = async () => {
+    const first = await askPin({ title:"Choose a PIN", subtitle:"Four digits. She must never see this." });
+    if(first === null) return;
+    if(!Pin.valid(first)) return toast("The PIN needs to be 4 digits.");
+    const again = await askPin({ title:"Type it again", subtitle:"Just to be sure." });
+    if(again === null) return;
+    if(again !== first) return toast("Those didn't match. Start again.");
+    STATE = seedState();
+    STATE.settings.childName = (document.getElementById("kid-name").value || "").trim() || null;
+    await Pin.set(STATE, first);
+    await save();
+    VIEW = "home"; render();
+    toast("All set. Hand it over!");
+  };
+}
+
+/* ------------------------------------------------------------- chores UI */
+function renderChores(){
+  const pend = pendingClaims(STATE);
+  const recent = recentDecisions(STATE);
+  const owed = pend.reduce((n,c) => n + c.payCents, 0);
+  const name = STATE.settings.childName;
+
+  app.innerHTML = `
+    <p class="eyebrow">${esc(Clock.friendly(Clock.day()))} · ${esc(Clock.au(Clock.day()))}</p>
+    <h1>${name ? esc(name) + "’s jobs" : "Jobs"}</h1>
+    <p class="sub">Tap a job when it's done. A grown-up checks it, then the money is yours.</p>
+
+    <div id="chore-list">
+      ${STATE.chores.filter(c => c.active).sort((a,b) => a.order-b.order).map(c => `
+        <button class="chore" data-chore="${c.id}">
+          <span class="face">${esc(c.emoji||"⭐")}</span>
+          <span class="spacer" style="text-align:left">
+            <span class="name">${esc(c.name)}</span>
+          </span>
+          <span class="pay num">${Money.fmt(c.payCents)}</span>
+        </button>`).join("")
+        || `<div class="card empty"><span class="big">🧹</span>No jobs on the list yet. A grown-up can add some in Parent.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:4px">
+        <h2 style="margin:0">Waiting to be checked</h2>
+        <span class="spacer"></span>
+        ${pend.length ? `<span class="badge wait num">${Money.fmt(owed)}</span>` : ""}
+      </div>
+      ${pend.length ? pend.map(c => `
+        <div class="queued">
+          <span>${esc(c.emoji||"⭐")}</span>
+          <span class="spacer">
+            <b>${esc(c.choreName)}</b><br>
+            <span class="when">${esc(Clock.friendly(c.day))}</span>
+          </span>
+          <span class="badge wait num">${Money.fmt(c.payCents)}</span>
+        </div>`).join("")
+      : `<div class="empty" style="padding:16px 8px">Nothing waiting. Tap a job above when you've done it.</div>`}
+    </div>
+
+    ${recent.length ? `
+    <div class="card">
+      <h2>Just checked</h2>
+      ${recent.map(c => `
+        <div class="queued">
+          <span class="spacer">
+            <b>${esc(c.choreName)}</b><br>
+            <span class="when">${esc(Clock.friendly(c.day))}</span>
+            ${c.parentNote ? `<span class="note">${esc(c.parentNote)}</span>` : ""}
+          </span>
+          <span class="badge ${c.status==="approved"?"paid":"nope"} num">
+            ${c.status==="approved" ? "Paid "+Money.fmt(c.payCents) : "Not approved"}
+          </span>
+        </div>`).join("")}
+    </div>` : ""}`;
+
+  app.querySelectorAll("[data-chore]").forEach(btn => {
+    btn.onclick = async () => {
+      const res = claimChore(STATE, btn.dataset.chore);
+      if(!res.ok) return toast(res.reason);
+      const r = btn.getBoundingClientRect();
+      const coin = document.createElement("div");
+      coin.className = "coin"; coin.textContent = "+" + Money.fmt(res.claim.payCents);
+      coin.style.left = (r.right - 96) + "px"; coin.style.top = (r.top + 14) + "px";
+      document.body.appendChild(coin);
+      setTimeout(() => coin.remove(), 1000);
+      btn.classList.add("tapped"); setTimeout(() => btn.classList.remove("tapped"), 340);
+      await save();
+      setTimeout(render, 340);
+    };
+  });
+}
+
+/* ------------------------------------------------------------- parent UI */
+function renderParent(){
+  if(!PARENT_UNLOCKED){
+    app.innerHTML = `
+      <p class="eyebrow">Parent</p>
+      <h1>Locked</h1>
+      <p class="sub">Your PIN opens the approval queue and the money settings.</p>
+      <div class="card" style="text-align:center">
+        <div style="font-size:44px;margin-bottom:6px">🔒</div>
+        <p style="margin-bottom:14px">${pendingClaims(STATE).length} job${pendingClaims(STATE).length===1?"":"s"} waiting to be checked.</p>
+        <button class="go" id="unlock" style="width:100%">Enter PIN</button>
+      </div>`;
+    document.getElementById("unlock").onclick = async () => {
+      if(await requirePin("Enter your PIN", "Opens the parent screen.")){ PARENT_UNLOCKED = true; render(); }
+    };
+    return;
+  }
+
+  const pend = pendingClaims(STATE);
+  const b = balances(STATE);
+  app.innerHTML = `
+    <p class="eyebrow">Parent · unlocked</p>
+    <h1>Approvals</h1>
+    <p class="sub">Leaving this screen locks it again.</p>
+
+    <div class="card">
+      ${pend.length ? `
+        <div class="row" style="margin-bottom:6px">
+          <h2 style="margin:0">${pend.length} waiting</h2>
+          <span class="spacer"></span>
+          <button class="tiny ghost" id="sel-all">Select all</button>
+        </div>
+        <div id="queue">
+          ${pend.map(c => `
+            <label class="check">
+              <input type="checkbox" data-claim="${c.id}">
+              <span class="spacer">
+                <b>${esc(c.choreName)}</b><br>
+                <span class="when" style="color:var(--muted);font-size:13px;font-weight:700">
+                  ${esc(Clock.friendly(c.day))} · ${esc(Clock.au(c.day))}
+                </span>
+              </span>
+              <span class="badge num">${Money.fmt(c.payCents)}</span>
+            </label>`).join("")}
+        </div>
+        <label class="field" style="margin:14px 0 12px">
+          <span class="eyebrow">Note (only shown if you don't approve)</span>
+          <input id="reject-note" placeholder="e.g. the back pots were still dry" maxlength="80">
+        </label>
+        <div class="row">
+          <button class="go spacer" id="approve">Approve <span id="sel-sum" class="num"></span></button>
+          <button class="no" id="reject">Not yet</button>
+        </div>
+      ` : `<div class="empty"><span class="big">✅</span>Queue's clear. Nothing waiting on you.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0">Jobs &amp; pay</h2>
+        <span class="spacer"></span>
+        <button class="tiny" id="add-chore">Add a job</button>
+      </div>
+      ${STATE.chores.filter(c => c.active).sort((a,b)=>a.order-b.order).map(c => `
+        <div class="queued">
+          <span>${esc(c.emoji||"⭐")}</span>
+          <span class="spacer"><b>${esc(c.name)}</b></span>
+          <span class="badge num">${Money.fmt(c.payCents)}</span>
+          <button class="tiny ghost" data-edit="${c.id}">Edit</button>
+          <button class="tiny ghost" data-del="${c.id}">✕</button>
+        </div>`).join("") || `<div class="empty" style="padding:14px">No jobs yet.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0">Balances</h2>
+        <span class="spacer"></span>
+        <button class="tiny" id="add-money">Add money</button>
+      </div>
+      <div class="row"><span class="spacer">Spending</span><b class="num">${Money.fmt(b.spending)}</b></div>
+      <div class="row"><span class="spacer">Savings</span><b class="num">${Money.fmt(b.savings)}</b></div>
+      <div class="row"><span class="spacer">Total</span><b class="num">${Money.fmt(b.total)}</b></div>
+      <p class="sub" style="margin:12px 0 0">Spending can run down to ${Money.fmt(-STATE.settings.overdraftLimitCents)} before it's blocked.</p>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0">Interest</h2>
+        <span class="spacer"></span>
+        <button class="tiny" id="edit-rate">Change rate</button>
+      </div>
+      <div class="row"><span class="spacer">Rate</span><b class="num">${(STATE.settings.interestRateBps/100).toFixed(2)}% a year</b></div>
+      <div class="row"><span class="spacer">Paid up to</span><b class="num">${esc(monthName(STATE.interest.lastCreditedMonth))}</b></div>
+      <div class="row"><span class="spacer">Paid out so far</span><b class="num">${Money.fmt(STATE.interest.totalEarnedCents)}</b></div>
+      <div class="row"><span class="spacer">Next month, roughly</span><b class="num">${Money.fmt(nextInterestEstimate(STATE))}</b></div>
+      <p class="sub" style="margin:12px 0 0">Simulated only — you're holding the actual money. Missed months are caught up the next time she opens the app.</p>
+    </div>
+
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="sub" style="margin-bottom:12px">Everything as one JSON file — jobs, money, habits, settings. Worth doing before a new phone.</p>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <button class="tiny" id="export">Save a backup</button>
+        <button class="ghost tiny" id="restore">Restore from a backup</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <button class="ghost tiny" id="change-name">Change her name</button>
+        <button class="ghost tiny" id="change-pin">Change PIN</button>
+        <button class="no tiny" id="wipe">Reset everything</button>
+      </div>
+      <details style="margin-top:12px">
+        <summary>Developer checks</summary>
+        <div id="tests"></div>
+        <button class="tiny ghost" id="peek-interest" style="margin-top:10px">Preview the interest pop-up</button>
+      </details>
+    </div>`;
+
+  if(pend.length){
+    const boxes = () => [...app.querySelectorAll("[data-claim]")];
+    const chosen = () => boxes().filter(b => b.checked).map(b => b.dataset.claim);
+    const sum = () => {
+      const ids = chosen();
+      const cents = pend.filter(c => ids.includes(c.id)).reduce((n,c) => n+c.payCents, 0);
+      document.getElementById("sel-sum").textContent = ids.length ? Money.fmt(cents) : "";
+      document.getElementById("approve").disabled = !ids.length;
+      document.getElementById("reject").disabled = !ids.length;
+    };
+    boxes().forEach(b => b.onchange = sum);
+    document.getElementById("sel-all").onclick = () => { boxes().forEach(b => b.checked = true); sum(); };
+    sum();
+
+    document.getElementById("approve").onclick = async () => {
+      const ids = chosen();
+      const r = approveClaims(STATE, ids);
+      await save(); render();
+      toast(`Approved ${r.count} — ${Money.fmt(r.paidCents)} into Spending.`);
+    };
+    document.getElementById("reject").onclick = async () => {
+      const ids = chosen();
+      const note = document.getElementById("reject-note").value;
+      const r = rejectClaims(STATE, ids, note);
+      await save(); render();
+      toast(`${r.count} marked not approved. No money moved.`);
+    };
+  }
+
+  document.getElementById("peek-interest").onclick = () => interestSheet([
+    { monthKey: Clock.month(), amount: Math.max(1, nextInterestEstimate(STATE)) }
+  ]);
+  document.getElementById("export").onclick = () => exportBackup();
+  document.getElementById("restore").onclick = () => restoreBackup();
+  document.getElementById("edit-rate").onclick = () => rateSheet();
+  document.getElementById("add-money").onclick = () => addMoneySheet();
+  document.getElementById("add-chore").onclick = () => choreSheet(null);
+  app.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => choreSheet(b.dataset.edit));
+  app.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const c = STATE.chores.find(x => x.id === b.dataset.del);
+    if(!c || !confirm(`Remove “${c.name}”? Jobs she's already claimed stay in the queue.`)) return;
+    c.active = false; await save(); render(); toast("Job removed.");
+  });
+
+  document.getElementById("change-name").onclick = async () => {
+    const v = prompt("Her name:", STATE.settings.childName || "");
+    if(v === null) return;
+    STATE.settings.childName = v.trim() || null; await save(); render();
+  };
+  document.getElementById("change-pin").onclick = async () => {
+    if(!await requirePin("Current PIN", "Confirm it's you.")) return;
+    const a = await askPin({ title:"New PIN", subtitle:"Four digits." });
+    if(a === null) return;
+    if(!Pin.valid(a)) return toast("The PIN needs to be 4 digits.");
+    const b2 = await askPin({ title:"Type it again", subtitle:"Just to be sure." });
+    if(b2 !== a) return toast("Those didn't match. Nothing changed.");
+    await Pin.set(STATE, a); await save(); toast("PIN changed.");
+  };
+  document.getElementById("wipe").onclick = async () => {
+    if(!await requirePin("Confirm reset", "This clears money, jobs and habits.")) return;
+    if(!confirm("Delete everything and start again? This can't be undone.")) return;
+    await Storage.clear(); STATE = null; PARENT_UNLOCKED = false; boot();
+  };
+
+  runTests();
+}
+
+/* ---- add / edit a chore (PIN required — it changes what money is worth) ---- */
+const ICONS = [
+  "🧺","🍽️","🧹","🧽","🧼","🗑️","🪣","🧻","🚿","🪥","🛏️","🪟",
+  "🪴","🌱","🌸","🍂","🚰","🌻","🐕","🐈","🐟","🐰","🐔","🥚",
+  "👕","🧦","👟","🎒","📚","✏️","🖍️","📖","🍳","🥣","🥕","🍎",
+  "🛒","🚗","🚲","📦","📮","💡","🔌","🔧","🧯","⏰","📅","🔋",
+  "🧸","🎨","🎵","🎹","⚽","🏀","🏊","🛹","⭐","🌟","🔥","🏆",
+  "🎯","🧩","❤️","✅","💰","🪙","🎁","👍","😀","🌈","☀️","🌙"
+];
+function choreSheet(choreId){
+  const c = choreId ? STATE.chores.find(x => x.id === choreId) : null;
+  let icon = c ? (c.emoji || "⭐") : "🧺";
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">${c ? "Edit job" : "New job"}</p>
+      <h2>${c ? esc(c.name) : "Add a job"}</h2>
+      <label class="field"><span class="eyebrow">What is it</span>
+        <input id="c-name" maxlength="40" value="${c ? esc(c.name) : ""}" placeholder="e.g. Take the bins out"></label>
+      <label class="field"><span class="eyebrow">Pays</span>
+        <input id="c-pay" inputmode="decimal" value="${c ? (c.payCents/100).toFixed(2) : ""}" placeholder="0.50"></label>
+      <p class="eyebrow">Pick an icon</p>
+      <div class="emoji-grid" id="c-icons">
+        ${ICONS.map(e => `<button type="button" data-emoji="${e}" aria-pressed="${e===icon}" aria-label="icon ${e}">${e}</button>`).join("")}
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="ghost" id="c-cancel">Cancel</button>
+        <button class="go spacer" id="c-save">${c ? "Save changes" : "Add it"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const grid = veil.querySelector("#c-icons");
+  const picked = grid.querySelector('[aria-pressed="true"]');
+  if(picked) picked.scrollIntoView({ block:"nearest" });
+  grid.onclick = e => {
+    const b = e.target.closest("[data-emoji]");
+    if(!b) return;
+    icon = b.dataset.emoji;
+    grid.querySelectorAll("[data-emoji]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  };
+  const close = () => veil.remove();
+  veil.querySelector("#c-cancel").onclick = close;
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+  veil.querySelector("#c-save").onclick = async () => {
+    const name = veil.querySelector("#c-name").value.trim();
+    const cents = Money.parse(veil.querySelector("#c-pay").value);
+    if(!name) return toast("Give the job a name.");
+    if(cents === null || cents <= 0) return toast("How much does it pay?");
+    if(cents > 5000 && !confirm(`${Money.fmt(cents)} per go — is that right?`)) return;
+    close();
+    if(!await requirePin(c ? "Confirm the change" : "Confirm the new job", "Changing pay needs your PIN.")) return;
+    if(c){ c.name = name; c.payCents = cents; c.emoji = icon; }
+    else STATE.chores.push({ id:uid("chore"), name, payCents:cents, emoji:icon, active:true,
+                             order:(Math.max(0,...STATE.chores.map(x=>x.order))+1) });
+    await save(); render(); toast(c ? "Job updated." : "Job added.");
+  };
+}
+
+/* ------------------------------------------------------- savings history
+   The chart is rebuilt from the ledger, never stored — so it can't drift
+   out of step with the balance. */
+const dayNum = d => { const [y,m,dd] = d.split("-").map(Number); return Date.UTC(y,m-1,dd)/864e5; };
+const numDay = n => new Date(n*864e5).toISOString().slice(0,10);
+
+function savingsSeries(state){
+  const rel = state.transactions
+    .filter(t => t.type === "interest" || (t.type === "manual_credit" && t.pool === "savings") || t.type === "transfer")
+    .sort((a,b) => a.day.localeCompare(b.day) || a.n - b.n);
+  if(!rel.length) return [];
+  let bal = 0;
+  const pts = [];
+  for(const t of rel){
+    bal += t.type === "transfer" ? (t.from === "spending" ? t.amountCents : -t.amountCents) : t.amountCents;
+    if(pts.length && pts[pts.length-1].day === t.day) pts[pts.length-1].cents = bal;
+    else pts.push({ day:t.day, cents:bal });
+  }
+  pts.unshift({ day: numDay(dayNum(pts[0].day) - 1), cents: 0 });   // start from zero
+  const today = Clock.day();
+  if(pts[pts.length-1].day < today) pts.push({ day: today, cents: bal });
+  return pts;
+}
+
+function savingsChart(pts){
+  if(pts.length < 2) return `<div class="empty" style="padding:20px 8px">
+    <span class="big">📈</span>Put something into Savings and your line starts climbing here.</div>`;
+
+  const W = 340, H = 152, L = 8, R = 46, T = 14, B = 20;
+  const x0 = dayNum(pts[0].day), x1 = dayNum(pts[pts.length-1].day);
+  const span = Math.max(1, x1 - x0);
+  const top = Math.max(100, ...pts.map(p => p.cents));
+  const px = d => L + (dayNum(d) - x0) / span * (W - L - R);
+  const py = c => T + (1 - c / top) * (H - T - B);
+
+  const line = pts.map((p,i) => `${i ? "L" : "M"}${px(p.day).toFixed(1)},${py(p.cents).toFixed(1)}`).join(" ");
+  const area = `${line} L${px(pts[pts.length-1].day).toFixed(1)},${(H-B).toFixed(1)} L${px(pts[0].day).toFixed(1)},${(H-B).toFixed(1)} Z`;
+  const last = pts[pts.length-1];
+  const lx = px(last.day), ly = py(last.cents);
+  const short = d => { const [,m,dd] = d.split("-"); return `${Number(dd)}/${Number(m)}`; };
+
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Savings grew to ${Money.fmt(last.cents)}">
+    <line class="grid" x1="${L}" y1="${py(top)}" x2="${W-R}" y2="${py(top)}"/>
+    <line class="grid" x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}"/>
+    <text class="tick" x="${W-R+6}" y="${py(top)+4}">${Money.fmt(top)}</text>
+    <text class="tick" x="${W-R+6}" y="${H-B+4}">$0</text>
+    <path class="area" d="${area}"/>
+    <path class="line draw" d="${line}" style="--len:1600"/>
+    <circle class="knob" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6"/>
+    <text class="tick" x="${L}" y="${H-4}">${short(pts[0].day)}</text>
+    <text class="tick" x="${W-R}" y="${H-4}" text-anchor="end">${short(last.day)}</text>
+  </svg></div>`;
+}
+
+/* ------------------------------------------------------------- interest */
+const monthName = k => {
+  const [y,m] = k.split("-").map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleString("en-AU",{ month:"long", timeZone:"UTC" }) + " " + y;
+};
+const nextInterestEstimate = state =>
+  Math.max(0, Math.round(balances(state).savings * state.settings.interestRateBps / 10000 / 12));
+
+/** Shown once, on the open where the money actually lands. */
+function interestSheet(credits){
+  const total = credits.reduce((n,c) => n + c.amount, 0);
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="text-align:center">
+      <div style="font-size:46px;line-height:1">✨</div>
+      <p class="eyebrow" style="margin-top:8px">Interest</p>
+      <div class="bignum">+${Money.fmt(total)}</div>
+      <p class="sub" style="margin:12px 0 4px">
+        ${credits.length === 1
+          ? `Your savings earned this in ${esc(monthName(credits[0].monthKey))}, just for leaving it there.`
+          : `Your savings earned this over ${credits.length} months, just for leaving it there.`}
+      </p>
+      ${credits.length > 1 ? `<div style="margin:10px 0 4px">${credits.map(c =>
+        `<div class="row" style="font-size:14px;padding:3px 0"><span class="spacer" style="text-align:left">${esc(monthName(c.monthKey))}</span><b class="num">+${Money.fmt(c.amount)}</b></div>`).join("")}</div>` : ""}
+      <button class="go" id="i-ok" style="width:100%;margin-top:14px">Brilliant</button>
+    </div>`;
+  document.body.appendChild(veil);
+  const r = veil.querySelector(".bignum").getBoundingClientRect();
+  celebrate(r.left + r.width/2, r.top + 20, ["✨","🪙","✨","🪙","⭐","✨","🪙","⭐"]);
+  const close = () => veil.remove();
+  veil.querySelector("#i-ok").onclick = close;
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+}
+
+/* ---- parent changes the rate (PIN) ---- */
+function rateSheet(){
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <p class="eyebrow">Parent</p>
+      <h2>Interest rate</h2>
+      <p class="sub">Per year, paid into Savings on the 1st of each month and compounding.</p>
+      <label class="field"><span class="eyebrow">Rate % per year</span>
+        <input id="r-val" inputmode="decimal" value="${(STATE.settings.interestRateBps/100).toFixed(2)}"></label>
+      <p class="sub" id="r-preview"></p>
+      <div class="row">
+        <button class="ghost" id="r-cancel">Cancel</button>
+        <button class="go spacer" id="r-go">Save rate</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  const preview = () => {
+    const bps = Math.round(parseFloat(q("#r-val").value) * 100);
+    const sav = balances(STATE).savings;
+    q("#r-preview").textContent = (isFinite(bps) && bps >= 0)
+      ? `On ${Money.fmt(sav)} that's about ${Money.fmt(Math.round(sav*bps/10000/12))} next month.`
+      : "";
+  };
+  q("#r-val").oninput = preview; preview();
+  q("#r-cancel").onclick = close;
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+  q("#r-go").onclick = async () => {
+    const bps = Math.round(parseFloat(q("#r-val").value) * 100);
+    if(!isFinite(bps) || bps < 0 || bps > 10000) return toast("Pick a rate between 0 and 100%.");
+    close();
+    if(!await requirePin("Confirm the rate", `${(bps/100).toFixed(2)}% per year.`)) return;
+    STATE.settings.interestRateBps = bps;
+    await save(); render();
+    toast(`Interest set to ${(bps/100).toFixed(2)}% a year.`);
+  };
+}
+
+/* -------------------------------------------------------------- money UI */
+function txnLook(t){
+  switch(t.type){
+    case "chore_payment": return { ic:"🧺", label:t.note || "Job", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "manual_credit": return { ic:"🎁", label:t.note || "Money in",
+                                   sub:t.pool === "savings" ? "into Savings" : "into Spending",
+                                   amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "interest":      return { ic:"✨", label:"Interest on your savings", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "spend":         return { ic:"🛍️", label:t.note || "Something", amt:"−"+Money.fmt(t.amountCents) };
+    case "transfer":      return { ic: t.from === "spending" ? "🏦" : "↩️",
+                                   label: t.from === "spending" ? "Moved into Savings" : "Moved back to Spending",
+                                   amt: Money.fmt(t.amountCents) };
+    default: return { ic:"•", label:t.note || t.type, amt:Money.fmt(t.amountCents||0) };
+  }
+}
+
+/** Coins fly out from a point — used when savings grow. */
+function celebrate(x, y, chars = ["🪙","✨","🪙","⭐","✨","🪙"]){
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  chars.forEach((ch,i) => {
+    const el = document.createElement("div");
+    el.className = "burst"; el.textContent = ch;
+    el.style.left = x + "px"; el.style.top = y + "px";
+    el.style.setProperty("--dx", (Math.random()*180 - 90).toFixed(0) + "px");
+    el.style.setProperty("--dy", (-70 - Math.random()*80).toFixed(0) + "px");
+    el.style.animationDelay = (i*45) + "ms";
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  });
+}
+
+function renderMoney(){
+  const b = balances(STATE);
+  const pos = { sp: Math.max(0, b.spending), sv: Math.max(0, b.savings) };
+  const sum = pos.sp + pos.sv;
+  const spPct = sum ? Math.round(pos.sp / sum * 100) : 50;
+  const items = history(STATE);
+  const owing = b.spending < 0;
+
+  let rows = "", lastDay = null;
+  for(const t of items.slice(0,60)){
+    if(t.day !== lastDay){ rows += `<p class="daygroup">${esc(Clock.friendly(t.day))}</p>`; lastDay = t.day; }
+    const L = txnLook(t);
+    rows += `<div class="txn">
+      <span class="ic">${L.ic}</span>
+      <span class="spacer"><b>${esc(L.label)}</b>${L.sub ? `<br><span class="when" style="color:var(--muted);font-size:13px;font-weight:700">${esc(L.sub)}</span>` : ""}</span>
+      <span class="amt ${L.tone === "plus" ? "plus" : ""}">${L.amt}</span>
+    </div>`;
+  }
+
+  app.innerHTML = `
+    <p class="eyebrow">Your money</p>
+    <h1 class="num">${Money.fmt(b.total)}</h1>
+    <p class="sub">Altogether, in both pockets.</p>
+
+    ${sum ? `
+      <div class="splitbar">
+        ${pos.sp ? `<span class="sp num" style="flex:0 0 ${spPct}%">${spPct >= 22 ? Money.fmt(pos.sp) : ""}</span>` : ""}
+        ${pos.sv ? `<span class="sv num" style="flex:0 0 ${100-spPct}%">${100-spPct >= 22 ? Money.fmt(pos.sv) : ""}</span>` : ""}
+      </div>
+      <div class="legend"><span><i style="background:var(--mango)"></i>Spending</span><span><i style="background:var(--blueberry)"></i>Savings</span></div>
+    ` : `<div class="card empty" style="margin-bottom:16px"><span class="big">🪙</span>Nothing in either pocket yet. Do a job and it'll show up here.</div>`}
+
+    <div class="pools">
+      <div class="pool sp">
+        <p class="eyebrow" style="margin-bottom:2px">Spending</p>
+        <div class="amt">${Money.fmt(b.spending)}</div>
+        <div class="cap">${owing ? "catching up" : "yours to use"}</div>
+      </div>
+      <div class="pool sv">
+        <p class="eyebrow" style="margin-bottom:2px">Savings</p>
+        <div class="amt">${Money.fmt(b.savings)}</div>
+        <div class="cap">growing</div>
+      </div>
+    </div>
+
+    <div class="row" style="gap:10px;margin-bottom:20px">
+      <button class="go spacer" id="btn-move">Move money</button>
+      <button class="ghost spacer" id="btn-spend">I spent something</button>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:2px">
+        <h2 style="margin:0">Savings growing</h2>
+        <span class="spacer"></span>
+        <span class="badge num">${(STATE.settings.interestRateBps/100).toFixed(2)}% a year</span>
+      </div>
+      ${savingsChart(savingsSeries(STATE))}
+      <div class="row" style="margin-top:10px"><span class="spacer">Interest earned so far</span>
+        <b class="num">${Money.fmt(STATE.interest.totalEarnedCents)}</b></div>
+      <div class="row"><span class="spacer">Next payday, 1st of ${esc(monthName(Clock.nextMonth(Clock.month())).split(" ")[0])}</span>
+        <b class="num">about ${Money.fmt(nextInterestEstimate(STATE))}</b></div>
+      <p class="sub" style="margin:12px 0 0">The longer money sits in Savings, the more it earns — and the interest earns interest too.</p>
+    </div>
+
+    <div class="card">
+      <h2>Everything that's happened</h2>
+      ${rows || `<div class="empty" style="padding:16px 8px">Nothing yet.</div>`}
+      ${items.length > 60 ? `<p class="sub" style="margin:14px 0 0">Showing the last 60.</p>` : ""}
+    </div>`;
+
+  document.getElementById("btn-move").onclick = e => moveSheet(e.currentTarget);
+  document.getElementById("btn-spend").onclick = () => spendSheet();
+}
+
+/* ---- move money between pools (no PIN — it's her money either way) ---- */
+function moveSheet(fromEl){
+  let dir = "spending";            // which pool the money leaves
+  let cents = null;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">Move money</p>
+      <h2 id="m-title">Into Savings</h2>
+      <p class="sub" id="m-avail"></p>
+      <div class="chips" id="m-dir">
+        <button data-dir="spending" aria-pressed="true">🏦 Into Savings</button>
+        <button data-dir="savings" aria-pressed="false">↩️ Back to Spending</button>
+      </div>
+      <p class="eyebrow">How much</p>
+      <div class="chips" id="m-quick"></div>
+      <label class="field"><span class="eyebrow">Or type it</span>
+        <input id="m-amt" inputmode="decimal" placeholder="0.00"></label>
+      <div id="m-confirm"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="ghost" id="m-cancel">Cancel</button>
+        <button class="go spacer" id="m-go" disabled>Move it</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  const avail = () => dir === "spending" ? balances(STATE).spending : balances(STATE).savings;
+
+  function paint(){
+    const a = Math.max(0, avail());
+    q("#m-title").textContent = dir === "spending" ? "Into Savings" : "Back to Spending";
+    q("#m-avail").textContent = dir === "spending"
+      ? `You've got ${Money.fmt(a)} in Spending to move across.`
+      : `You've got ${Money.fmt(a)} saved up.`;
+    q("#m-quick").innerHTML = [50,100,200,500].filter(v => v <= a).map(v =>
+      `<button data-v="${v}" aria-pressed="${cents===v}">${Money.fmt(v)}</button>`).join("")
+      + (a > 0 ? `<button data-v="${a}" aria-pressed="${cents===a}">All of it</button>` : "");
+    q("#m-go").disabled = !(cents && cents > 0 && cents <= a);
+  }
+  paint();
+
+  veil.addEventListener("click", e => {
+    if(e.target === veil) return close();
+    const d = e.target.closest("[data-dir]");
+    if(d){ dir = d.dataset.dir; cents = null; q("#m-amt").value = "";
+           veil.querySelectorAll("[data-dir]").forEach(x => x.setAttribute("aria-pressed", String(x === d)));
+           q("#m-confirm").innerHTML = "";
+           delete q("#m-go").dataset.confirmed; q("#m-go").textContent = "Move it";
+           return paint(); }
+    const v = e.target.closest("[data-v]");
+    if(v){ cents = Number(v.dataset.v); q("#m-amt").value = (cents/100).toFixed(2); return paint(); }
+  });
+  q("#m-amt").oninput = e => { cents = Money.parse(e.target.value); paint(); };
+  q("#m-cancel").onclick = close;
+
+  q("#m-go").onclick = () => {
+    // Taking money out of Savings gets a gentle second look — never a scolding.
+    if(dir === "savings" && !q("#m-go").dataset.confirmed){
+      q("#m-confirm").innerHTML = `<div class="note" style="border-style:solid">
+        Sure? Your savings earn a little extra every month, and ${Money.fmt(cents)} is doing that right now.</div>`;
+      q("#m-go").dataset.confirmed = "1";
+      q("#m-go").textContent = "Yes, move it";
+      return;
+    }
+    const res = transfer(STATE, dir, cents);
+    if(!res.ok) return toast(res.reason);
+    const amount = cents;
+    close(); save(); render();
+    if(dir === "spending"){
+      const r = fromEl ? fromEl.getBoundingClientRect() : { left:innerWidth/2, top:innerHeight/2 };
+      celebrate(r.left + 40, r.top);
+      toast(`${Money.fmt(amount)} tucked into Savings. Nice one.`);
+    } else {
+      toast(`${Money.fmt(amount)} moved back to Spending.`);
+    }
+  };
+}
+
+/* ---- log a spend (no PIN — recording is the whole point) ---- */
+function spendSheet(){
+  const floor = -STATE.settings.overdraftLimitCents;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">Spending</p>
+      <h2>What did you spend?</h2>
+      <label class="field"><span class="eyebrow">How much</span>
+        <input id="s-amt" inputmode="decimal" placeholder="0.00"></label>
+      <label class="field"><span class="eyebrow">What on</span>
+        <input id="s-note" maxlength="40" placeholder="e.g. ice cream at the beach"></label>
+      <p class="sub" id="s-after" style="margin-bottom:14px"></p>
+      <div class="row">
+        <button class="ghost" id="s-cancel">Cancel</button>
+        <button class="go spacer" id="s-go" disabled>Write it down</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  q("#s-cancel").onclick = close;
+  veil.addEventListener("click", e => { if(e.target === veil) close(); });
+
+  const check = () => {
+    const cents = Money.parse(q("#s-amt").value);
+    const after = balances(STATE).spending - (cents || 0);
+    if(!cents || cents <= 0){ q("#s-after").textContent = ""; q("#s-go").disabled = true; return; }
+    if(after < floor){
+      q("#s-after").textContent = `That's more than you can spend right now — Spending only goes down to ${Money.fmt(floor)}.`;
+      q("#s-go").disabled = true;
+    } else {
+      q("#s-after").textContent = `Spending would be ${Money.fmt(after)} after this.`;
+      q("#s-go").disabled = false;
+    }
+  };
+  q("#s-amt").oninput = check;
+  q("#s-amt").focus();
+
+  q("#s-go").onclick = () => {
+    const cents = Money.parse(q("#s-amt").value);
+    const res = logSpend(STATE, cents, q("#s-note").value);
+    if(!res.ok) return toast(res.reason);
+    close(); save(); render();
+    toast(res.after < 0 ? `Written down. Spending is ${Money.fmt(res.after)} — it'll catch up next job.`
+                        : `Written down. ${Money.fmt(res.after)} left in Spending.`);
+  };
+}
+
+/* ---- parent puts money in by hand (PIN) ---- */
+function addMoneySheet(){
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">Parent</p>
+      <h2>Add money</h2>
+      <label class="field"><span class="eyebrow">How much</span>
+        <input id="a-amt" inputmode="decimal" placeholder="10.00"></label>
+      <label class="field"><span class="eyebrow">What for</span>
+        <input id="a-note" maxlength="40" placeholder="e.g. birthday money from Nan"></label>
+      <p class="eyebrow">Which pocket</p>
+      <div class="chips" id="a-pool">
+        <button data-pool="spending" aria-pressed="true">Spending</button>
+        <button data-pool="savings" aria-pressed="false">Savings</button>
+      </div>
+      <div class="row">
+        <button class="ghost" id="a-cancel">Cancel</button>
+        <button class="go spacer" id="a-go">Add it</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  let pool = "spending";
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  q("#a-cancel").onclick = close;
+  veil.addEventListener("click", e => {
+    if(e.target === veil) return close();
+    const p = e.target.closest("[data-pool]");
+    if(p){ pool = p.dataset.pool;
+      veil.querySelectorAll("[data-pool]").forEach(x => x.setAttribute("aria-pressed", String(x === p))); }
+  });
+  q("#a-amt").focus();
+  q("#a-go").onclick = async () => {
+    const cents = Money.parse(q("#a-amt").value);
+    const note = q("#a-note").value.trim() || "Money from a grown-up";
+    if(!cents || cents <= 0) return toast("How much are you adding?");
+    close();
+    if(!await requirePin("Confirm the money", `${Money.fmt(cents)} into ${pool === "savings" ? "Savings" : "Spending"}.`)) return;
+    tx(STATE, { type:"manual_credit", amountCents:cents, pool, note });
+    await save(); render();
+    toast(`${Money.fmt(cents)} added.`);
+  };
+}
+
+/* --------------------------------------------------------------- habits
+   Nothing here touches money, so nothing here needs the PIN.
+   Ticks are stored per day, which means "reset at midnight" is automatic:
+   a new day is simply a key that doesn't exist yet. Streaks are counted
+   back through the ledger of ticks rather than stored, so they can't drift. */
+const TIMES = [
+  { id:"morning",   label:"Morning",   icon:"🌅" },
+  { id:"afternoon", label:"Afternoon", icon:"☀️" },
+  { id:"night",     label:"Night",     icon:"🌙" }
+];
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+let HABIT_EDIT = false;
+
+const isDone = (s, id, day) => !!(s.habits.done[day] && s.habits.done[day][id]);
+function toggleHabit(s, id, day = Clock.day()){
+  const d = s.habits.done[day] || (s.habits.done[day] = {});
+  if(d[id]) delete d[id]; else d[id] = true;
+  if(!Object.keys(d).length) delete s.habits.done[day];
+  return isDone(s, id, day);
+}
+const dueOn = (h, day, kind) => kind === "daily" ? true : h.days.includes(Clock.weekday(day));
+
+/** Days in a row, counting back. Today doesn't break it until the day is over. */
+function streakFor(s, h, kind){
+  const today = Clock.day();
+  let n = 0, cur = dayNum(today), guard = 0;
+  while(guard++ < 500){
+    const day = numDay(cur);
+    if(dueOn(h, day, kind)){
+      if(isDone(s, h.id, day)) n++;
+      else if(day !== today) break;
+    }
+    cur--;
+  }
+  return n;
+}
+function bestStreak(s, h, kind){
+  const days = Object.keys(s.habits.done).sort();
+  if(!days.length) return 0;
+  let best = 0, run = 0;
+  for(let cur = dayNum(days[0]); cur <= dayNum(Clock.day()); cur++){
+    const day = numDay(cur);
+    if(!dueOn(h, day, kind)) continue;
+    if(isDone(s, h.id, day)){ run++; best = Math.max(best, run); }
+    else if(day !== Clock.day()) run = 0;
+  }
+  return best;
+}
+/** Keep the tick history from growing forever. */
+function pruneHabits(s, keepDays = 400){
+  const cutoff = numDay(dayNum(Clock.day()) - keepDays);
+  for(const day of Object.keys(s.habits.done)) if(day < cutoff) delete s.habits.done[day];
+}
+
+/** One habit row. The tick box shows the habit's own icon until it's done,
+    then flips to a tick — one control, no wasted width on a phone. */
+function habitRowHTML(h, kind, opts = {}){
+  const today = Clock.day(), wd = Clock.weekday(today);
+  const on = isDone(STATE, h.id, today);
+  const st = streakFor(STATE, h, kind);
+  return `<div class="habit ${on ? "on" : ""}" data-habit="${h.id}" data-kind="${kind}" role="button" tabindex="0"
+               aria-pressed="${on}" aria-label="${esc(h.name)}">
+    <span class="tick"><span class="i">${esc(h.emoji || "⭐")}</span><span class="k">✔</span></span>
+    <span class="spacer">
+      <span class="hname">${esc(h.name)}</span>
+      ${kind === "weekly" && !opts.compact ? `<div class="weekstrip">${DAYS.map((d,i) => {
+          const n = i+1;
+          const dayStr = numDay(dayNum(Clock.weekStart(today)) + i);
+          const cls = !h.days.includes(n) ? "" : (isDone(STATE,h.id,dayStr) ? "done" : "due");
+          return `<b class="${cls} ${n===wd ? "today" : ""}">${d[0]}</b>`;
+        }).join("")}</div>`
+      : `<span class="hwhen">${on ? "Done" : "Still to do"}</span>`}
+    </span>
+    ${st >= 2 ? `<span class="streak">🔥 ${st}</span>` : ""}
+    ${opts.edit ? `<button class="tiny ghost" data-hedit="${h.id}" data-hkind="${kind}">Edit</button>` : ""}
+  </div>`;
+}
+
+/** Makes every habit row on the current screen tickable. */
+function bindHabitRows(after){
+  app.querySelectorAll("[data-habit]").forEach(el => {
+    const fire = e => {
+      if(e.target.closest("[data-hedit]")) return;
+      const now = toggleHabit(STATE, el.dataset.habit);
+      save();
+      if(now){
+        const r = el.getBoundingClientRect();
+        celebrate(r.left + 30, r.top + 12, ["⭐","✨","⭐"]);
+      }
+      after(); renderNav();
+    };
+    el.onclick = fire;
+    el.onkeydown = e => { if(e.key === " " || e.key === "Enter"){ e.preventDefault(); fire(e); } };
+  });
+  app.querySelectorAll("[data-hedit]").forEach(b => b.onclick = e => {
+    e.stopPropagation(); habitSheet(b.dataset.hedit, b.dataset.hkind);
+  });
+}
+
+function renderHabits(){
+  const today = Clock.day(), wd = Clock.weekday(today);
+  const H = STATE.habits;
+  const weeklyToday = H.weekly.filter(h => h.days.includes(wd)).sort((a,b) => a.order-b.order);
+  const dailySorted = H.daily.slice().sort((a,b) => a.order-b.order);
+  const dueCount = dailySorted.length + weeklyToday.length;
+  const doneCount = dailySorted.filter(h => isDone(STATE,h.id,today)).length
+                  + weeklyToday.filter(h => isDone(STATE,h.id,today)).length;
+  const pct = dueCount ? Math.round(doneCount/dueCount*100) : 0;
+  const row = (h,kind) => habitRowHTML(h, kind, { edit: HABIT_EDIT });
+
+  const groups = TIMES.map(t => {
+    const list = dailySorted.filter(h => h.timeOfDay === t.id);
+    if(!list.length) return "";
+    const left = list.filter(h => !isDone(STATE,h.id,today)).length;
+    return `<div class="grouphead">${t.icon} ${t.label}
+      <span class="spacer"></span>
+      <span class="n">${left ? left + " still to do" : "all done"}</span></div>
+      ${list.map(h => row(h,"daily")).join("")}`;
+  }).join("");
+
+  app.innerHTML = `
+    <p class="eyebrow">${esc(DAYS[wd-1])} ${esc(Clock.au(today))}</p>
+    <h1>Your routine</h1>
+    <p class="sub">${dueCount
+      ? (doneCount === dueCount ? "Every single one done today. Legend." : `${doneCount} of ${dueCount} done so far today.`)
+      : "Nothing set up yet — add your first one below."}</p>
+    ${dueCount ? `<div class="prog" style="margin-bottom:22px"><i style="width:${pct}%"></i></div>` : ""}
+
+    ${groups}
+
+    ${weeklyToday.length ? `<div class="grouphead">📅 This week, today
+      <span class="spacer"></span>
+      <span class="n">${weeklyToday.filter(h => !isDone(STATE,h.id,today)).length || "all"} ${weeklyToday.filter(h => !isDone(STATE,h.id,today)).length ? "still to do" : "done"}</span></div>
+      ${weeklyToday.map(h => row(h,"weekly")).join("")}` : ""}
+
+    ${H.weekly.filter(h => !h.days.includes(wd)).length ? `
+      <div class="grouphead">🗓️ Other days this week</div>
+      ${H.weekly.filter(h => !h.days.includes(wd)).sort((a,b)=>a.order-b.order).map(h => row(h,"weekly")).join("")}` : ""}
+
+    <div class="row" style="gap:10px;margin:22px 0 0">
+      <button class="go spacer" id="h-add">Add a habit</button>
+      <button class="ghost" id="h-edit" aria-pressed="${HABIT_EDIT}">${HABIT_EDIT ? "Done editing" : "Edit"}</button>
+    </div>
+
+    ${dailySorted.length || H.weekly.length ? `
+    <div class="card" style="margin-top:22px">
+      <h2>Best runs</h2>
+      ${[...dailySorted.map(h => [h,"daily"]), ...H.weekly.map(h => [h,"weekly"])].map(([h,k]) => {
+        const b = bestStreak(STATE,h,k), c = streakFor(STATE,h,k);
+        return `<div class="row" style="padding:6px 0"><span class="spacer">${esc(h.name)}
+          <span class="hwhen"> · ${k === "daily" ? "every day" : h.days.map(d => DAYS[d-1]).join(", ")}</span></span>
+          <b class="num">${c ? "🔥 " + c : "—"}</b>
+          <span class="hwhen" style="width:64px;text-align:right">best ${b}</span></div>`;
+      }).join("")}
+    </div>` : ""}`;
+
+  bindHabitRows(renderHabits);
+  document.getElementById("h-add").onclick = () => habitSheet(null);
+  document.getElementById("h-edit").onclick = () => { HABIT_EDIT = !HABIT_EDIT; renderHabits(); };
+}
+
+/* ---- her own habit editor: no PIN, these aren't money ---- */
+const HABIT_ICONS = [
+  "🪥","🦷","🧴","🚿","🛁","🧼","🫧","🧽","🛏️","😴","🌙","⏰",
+  "📚","📖","✍️","✏️","🎒","🧮","🎹","🎵","🎨","🧩","♟️","🔬",
+  "🏃","🚲","⚽","🏀","🏊","🛹","🩰","🥋","🧘","🤸","👟","🥇",
+  "🍎","🥕","🥦","💧","🥛","🍳","🐕","🐈","🐟","🌱","🪴","🌸",
+  "🧹","🧺","🛒","💊","🩹","👓","🧦","🧢","⭐","🌟","❤️","🔥"
+];
+function habitSheet(id, kind){
+  const H = STATE.habits;
+  const h = id ? (kind === "weekly" ? H.weekly : H.daily).find(x => x.id === id) : null;
+  let type = h ? kind : "daily";
+  let timeOfDay = h && kind === "daily" ? h.timeOfDay : "morning";
+  let days = h && kind === "weekly" ? h.days.slice() : [Clock.weekday(Clock.day())];
+  let icon = h ? (h.emoji || "⭐") : "⭐";
+
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">${h ? "Edit habit" : "New habit"}</p>
+      <h2>${h ? esc(h.name) : "Add a habit"}</h2>
+      <label class="field"><span class="eyebrow">What is it</span>
+        <input id="h-name" maxlength="40" value="${h ? esc(h.name) : ""}" placeholder="e.g. Read a chapter"></label>
+      <p class="eyebrow">Pick an icon</p>
+      <div class="emoji-grid" id="h-icons" style="margin-bottom:14px">
+        ${HABIT_ICONS.map(e => `<button type="button" data-hemoji="${e}" aria-pressed="${e===icon}" aria-label="icon ${e}">${e}</button>`).join("")}
+      </div>
+      <p class="eyebrow">How often</p>
+      <div class="chips" id="h-type">
+        <button data-type="daily" aria-pressed="${type==="daily"}">Every day</button>
+        <button data-type="weekly" aria-pressed="${type==="weekly"}">Certain days</button>
+      </div>
+      <div id="h-when"></div>
+      <div class="row" style="margin-top:6px">
+        ${h ? `<button class="no" id="h-del">Delete</button>` : `<button class="ghost" id="h-cancel">Cancel</button>`}
+        <button class="go spacer" id="h-save">${h ? "Save" : "Add it"}</button>
+      </div>
+      ${h ? `<button class="ghost" id="h-cancel2" style="width:100%;margin-top:10px">Cancel</button>` : ""}
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+
+  function paintWhen(){
+    q("#h-when").innerHTML = type === "daily"
+      ? `<p class="eyebrow">When in the day</p><div class="chips" id="h-time">
+           ${TIMES.map(t => `<button data-time="${t.id}" aria-pressed="${timeOfDay===t.id}">${t.icon} ${t.label}</button>`).join("")}
+         </div>`
+      : `<p class="eyebrow">Which days</p><div class="daypick" id="h-days">
+           ${DAYS.map((d,i) => `<button data-day="${i+1}" aria-pressed="${days.includes(i+1)}">${d}</button>`).join("")}
+         </div>`;
+  }
+  paintWhen();
+
+  const igrid = q("#h-icons");
+  const ipicked = igrid.querySelector('[aria-pressed="true"]');
+  if(ipicked) ipicked.scrollIntoView({ block:"nearest" });
+
+  veil.addEventListener("click", e => {
+    if(e.target === veil) return close();
+    const em = e.target.closest("[data-hemoji]");
+    if(em){ icon = em.dataset.hemoji;
+      igrid.querySelectorAll("[data-hemoji]").forEach(x => x.setAttribute("aria-pressed", String(x===em))); return; }
+    const ty = e.target.closest("[data-type]");
+    if(ty){ type = ty.dataset.type;
+      veil.querySelectorAll("[data-type]").forEach(x => x.setAttribute("aria-pressed", String(x===ty)));
+      return paintWhen(); }
+    const ti = e.target.closest("[data-time]");
+    if(ti){ timeOfDay = ti.dataset.time;
+      veil.querySelectorAll("[data-time]").forEach(x => x.setAttribute("aria-pressed", String(x===ti))); return; }
+    const dy = e.target.closest("[data-day]");
+    if(dy){ const n = Number(dy.dataset.day);
+      days = days.includes(n) ? days.filter(x => x !== n) : days.concat(n).sort();
+      dy.setAttribute("aria-pressed", String(days.includes(n))); return; }
+  });
+  if(q("#h-cancel")) q("#h-cancel").onclick = close;
+  if(q("#h-cancel2")) q("#h-cancel2").onclick = close;
+  if(q("#h-del")) q("#h-del").onclick = async () => {
+    if(!confirm(`Remove “${h.name}”? Your streak for it goes too.`)) return;
+    H.daily = H.daily.filter(x => x.id !== h.id);
+    H.weekly = H.weekly.filter(x => x.id !== h.id);
+    close(); await save(); render(); toast("Habit removed.");
+  };
+  q("#h-save").onclick = async () => {
+    const name = q("#h-name").value.trim();
+    if(!name) return toast("Give it a name.");
+    if(type === "weekly" && !days.length) return toast("Pick at least one day.");
+    const order = Math.max(0, ...H.daily.map(x=>x.order), ...H.weekly.map(x=>x.order)) + 1;
+    if(h){ H.daily = H.daily.filter(x => x.id !== h.id); H.weekly = H.weekly.filter(x => x.id !== h.id); }
+    const rec = { id: h ? h.id : uid("h"), name, emoji: icon, order: h ? h.order : order };
+    if(type === "daily") H.daily.push({ ...rec, timeOfDay });
+    else H.weekly.push({ ...rec, days: days.slice() });
+    close(); await save(); render();
+    toast(h ? "Habit updated." : "Habit added.");
+  };
+}
+
+/* ----------------------------------------------------------------- home */
+const hourNow = () => Number(new Intl.DateTimeFormat("en-AU",
+  { timeZone:TZ, hour:"numeric", hour12:false }).format(new Date()));
+
+function renderHome(){
+  const today = Clock.day(), wd = Clock.weekday(today);
+  const b = balances(STATE);
+  const pos = { sp: Math.max(0,b.spending), sv: Math.max(0,b.savings) };
+  const sum = pos.sp + pos.sv;
+  const spPct = sum ? Math.round(pos.sp/sum*100) : 50;
+  const name = STATE.settings.childName;
+  const h = hourNow();
+  const hello = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const pend = pendingClaims(STATE);
+  const owed = pend.reduce((n,c) => n + c.payCents, 0);
+
+  const dueDaily  = STATE.habits.daily.filter(x => !isDone(STATE,x.id,today)).sort((a,b)=>a.order-b.order);
+  const dueWeekly = STATE.habits.weekly.filter(x => x.days.includes(wd) && !isDone(STATE,x.id,today));
+  const totalDue = STATE.habits.daily.length + STATE.habits.weekly.filter(x => x.days.includes(wd)).length;
+  const left = dueDaily.length + dueWeekly.length;
+
+  app.innerHTML = `
+    <p class="eyebrow">${esc(DAYS[wd-1])} ${esc(Clock.au(today))}</p>
+    <h1>${esc(hello)}${name ? ", " + esc(name) : ""}</h1>
+    <p class="sub">${left ? `${left} thing${left===1?"":"s"} still to do today.` : "Everything's ticked off today."}</p>
+
+    <div class="card" data-goto="money" role="button" tabindex="0" style="cursor:pointer">
+      <p class="eyebrow">You have</p>
+      <div class="bignum" style="margin-bottom:12px">${Money.fmt(b.total)}</div>
+      ${sum ? `<div class="splitbar" style="height:38px">
+        ${pos.sp ? `<span class="sp num" style="flex:0 0 ${spPct}%">${spPct>=26?Money.fmt(pos.sp):""}</span>` : ""}
+        ${pos.sv ? `<span class="sv num" style="flex:0 0 ${100-spPct}%">${100-spPct>=26?Money.fmt(pos.sv):""}</span>` : ""}
+      </div>` : ""}
+      <div class="row" style="margin-top:10px;font-size:14px">
+        <span class="spacer"><b>Spending</b> ${Money.fmt(b.spending)}</span>
+        <span><b>Savings</b> ${Money.fmt(b.savings)}</span>
+      </div>
+    </div>
+
+    ${pend.length ? `
+      <div class="card" data-goto="chores" role="button" tabindex="0" style="cursor:pointer;background:#FFF4DF">
+        <div class="row">
+          <span class="spacer"><b>${pend.length} job${pend.length===1?"":"s"} waiting to be checked</b>
+            <br><span class="hwhen">${Money.fmt(owed)} once a grown-up says yes</span></span>
+          <span style="font-size:26px">⏳</span>
+        </div>
+      </div>` : ""}
+
+    ${totalDue ? (left ? `
+      <div class="grouphead">✅ Still to do today <span class="spacer"></span>
+        <span class="n">${totalDue-left} of ${totalDue} done</span></div>
+      ${dueDaily.map(x => habitRowHTML(x,"daily",{compact:true})).join("")}
+      ${dueWeekly.map(x => habitRowHTML(x,"weekly",{compact:true})).join("")}
+    ` : `<div class="card" style="background:#E4FBEF;text-align:center">
+        <div style="font-size:38px">🎉</div>
+        <b>Every habit done today.</b>
+      </div>`) : ""}
+
+    <div class="row" style="gap:10px;margin-top:20px">
+      <button class="go spacer" data-goto="chores">Do a job</button>
+      <button class="ghost spacer" data-goto="habits">All habits</button>
+    </div>`;
+
+  bindHabitRows(renderHome);
+  app.querySelectorAll("[data-goto]").forEach(el => {
+    const go = () => { VIEW = el.dataset.goto; render(); window.scrollTo(0,0); };
+    el.onclick = e => { if(!e.target.closest("[data-habit]")) go(); };
+    el.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); go(); } };
+  });
+}
+
+/* ------------------------------------------------------------------ nav */
+const TABS = [
+  { id:"home",   label:"Home",   icon:"🏠" },
+  { id:"chores", label:"Jobs",   icon:"🧺" },
+  { id:"money",  label:"Money",  icon:"🪙" },
+  { id:"habits", label:"Habits", icon:"🌟" },
+  { id:"parent", label:"Parent", icon:"🔑" }
+];
+function renderNav(){
+  nav.hidden = false;
+  const waiting = pendingClaims(STATE).length;
+  const today = Clock.day(), wd = Clock.weekday(today);
+  const left = STATE.habits.daily.filter(h => !isDone(STATE,h.id,today)).length
+             + STATE.habits.weekly.filter(h => h.days.includes(wd) && !isDone(STATE,h.id,today)).length;
+  const dots = { parent: waiting, habits: left };
+  nav.querySelector(".bar").innerHTML = TABS.map(t => `
+    <button data-tab="${t.id}" ${VIEW===t.id ? 'aria-current="page"' : ""}>
+      <span class="ic">${t.icon}</span>${t.label}
+      ${dots[t.id] ? `<span class="dot">${dots[t.id]}</span>` : ""}
+    </button>`).join("");
+  nav.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => {
+    if(VIEW === "parent" && b.dataset.tab !== "parent") PARENT_UNLOCKED = false;   // relock on leaving
+    VIEW = b.dataset.tab; render(); window.scrollTo(0,0);
+  });
+}
+
+function render(){
+  if(!STATE || !STATE.security.pinHash) return renderSetup();
+  renderNav();
+  if(VIEW === "parent") renderParent();
+  else if(VIEW === "money") renderMoney();
+  else if(VIEW === "habits") renderHabits();
+  else if(VIEW === "chores") renderChores();
+  else renderHome();
+}
+
+/* ------------------------------------------------------------- packaging
+   The brief says one file, so the icon is drawn on a canvas at load and the
+   manifest is built around it as a data URL — nothing to host alongside. */
+function packageApp(){
+  try{
+    const S = 512, c = document.createElement("canvas");
+    c.width = c.height = S;
+    const g = c.getContext("2d");
+    g.fillStyle = "#F3EDFF"; g.fillRect(0,0,S,S);
+    g.fillStyle = "#4C6FFF";
+    g.beginPath(); g.arc(S/2, S/2, 196, 0, Math.PI*2); g.fill();
+    g.beginPath(); g.arc(S/2, S/2, 150, 0, Math.PI*2);
+    g.fillStyle = "#FFB020"; g.fill();
+    g.lineWidth = 22; g.strokeStyle = "#2C2140"; g.stroke();
+    g.fillStyle = "#2C2140";
+    g.font = "900 190px system-ui, -apple-system, Roboto, sans-serif";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("$", S/2, S/2 + 12);
+    const png = c.toDataURL("image/png");
+
+    const icon = document.createElement("link");
+    icon.rel = "apple-touch-icon"; icon.href = png;
+    document.head.appendChild(icon);
+
+    const here = location.href.split("#")[0];
+    const manifest = {
+      name: "Pocket Money", short_name: "Pocket",
+      start_url: here, scope: here.replace(/[^/]*$/, ""),
+      display: "standalone", orientation: "portrait",
+      background_color: "#F3EDFF", theme_color: "#F3EDFF",
+      icons: [
+        { src: png, sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: png, sizes: "512x512", type: "image/png", purpose: "maskable" }
+      ]
+    };
+    const link = document.createElement("link");
+    link.rel = "manifest";
+    link.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(manifest));
+    document.head.appendChild(link);
+  }catch(e){ console.warn("Icon/manifest skipped", e); }
+}
+
+/* ---- backup: a plain JSON file you can keep anywhere ---- */
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `pocket-money-backup-${Clock.day()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Backup saved to your downloads.");
+}
+function restoreBackup(){
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "application/json,.json";
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if(!file) return;
+    let incoming;
+    try{ incoming = migrate(JSON.parse(await file.text())); }
+    catch(e){ return toast("That file isn't a Pocket Money backup."); }
+    const b = balances(incoming);
+    if(!confirm(`Replace everything with this backup?\n\n${incoming.transactions.length} transactions, `
+      + `${Money.fmt(b.total)} in total.\n\nWhat's on the phone now will be gone.`)) return;
+    if(!await requirePin("Confirm the restore", "This replaces all current data.")) return;
+    STATE = incoming;
+    await save(); PARENT_UNLOCKED = false; VIEW = "home"; render();
+    toast("Backup restored.");
+  };
+  input.click();
+}
+
+/* ----------------------------------------------------------------- boot */
+async function boot(){
+  packageApp();
+  STATE = await Storage.load();
+  if(!STATE) return renderSetup();
+  const credits = applyInterest(STATE);
+  pruneHabits(STATE);
+  STATE.lastOpenedDay = Clock.day();
+  await save();
+  render();
+  if(credits.length) setTimeout(() => interestSheet(credits), 450);
+}
+
+/* Phones sit on the home screen for days. Coming back to the app after
+   midnight should show the new day, not yesterday's ticks. */
+document.addEventListener("visibilitychange", async () => {
+  if(document.hidden || !STATE) return;
+  if(STATE.lastOpenedDay === Clock.day()) return;
+  STATE.lastOpenedDay = Clock.day();
+  const credits = applyInterest(STATE);
+  await save();
+  if(!document.querySelector(".veil")) render();
+  if(credits.length) setTimeout(() => interestSheet(credits), 400);
+});
+
+/* --------------------------------------------- regression checks (stage 1+2) */
+function runTests(){
+  const host = document.getElementById("tests");
+  if(!host) return;
+  const out = [];
+  const t = (name, fn) => { try{ out.push({ name, pass:true, why:fn()||"" }); }
+                            catch(e){ out.push({ name, pass:false, why:e.message }); } };
+  const eq = (a,b,m) => { if(a !== b) throw new Error(`${m}: ${a} ≠ ${b}`); };
+  const fresh = () => seedState();
+
+  t("Cents stay exact", () => { eq(Money.parse("3.50"),350,"parse"); eq(Money.fmt(-1500),"−$15.00","fmt");
+    const s = fresh(); for(let i=0;i<10;i++) tx(s,{type:"chore_payment",amountCents:10});
+    eq(balances(s).spending,100,"sum"); return "10 × 10c = $1.00"; });
+  t("Adelaide days and AU dates", () => { eq(Clock.au("2026-08-09"),"9/8/2026","fmt");
+    eq(Clock.weekStart("2026-08-09"),"2026-08-03","week"); return "weeks start Monday"; });
+  t("Claiming pays nothing until approved", () => { const s = fresh(); claimChore(s,"chore_dish");
+    eq(balances(s).spending,0,"before"); approveClaims(s,[s.claims[0].id]);
+    eq(balances(s).spending,50,"after"); return "50c lands only on approval"; });
+  t("Not approved = no money, note kept", () => { const s = fresh(); claimChore(s,"chore_plant");
+    rejectClaims(s,[s.claims[0].id],"Back pots were dry"); eq(balances(s).spending,0,"balance");
+    eq(s.claims[0].parentNote,"Back pots were dry","note"); return "balance untouched"; });
+  t("Same job twice a day both queue", () => { const s = fresh();
+    claimChore(s,"chore_dish"); claimChore(s,"chore_dish"); eq(pendingClaims(s).length,2,"queue");
+    return "yours to sort out"; });
+  t("Spending floor holds at −$15", () => { const s = fresh();
+    tx(s,{type:"chore_payment",amountCents:500}); eq(logSpend(s,2000,"Lego").ok,true,"allowed");
+    eq(balances(s).spending,-1500,"floor"); eq(logSpend(s,1,"more").ok,false,"blocked");
+    return "$5 in, $20 out, stops dead at −$15"; });
+  t("Moving money invents none", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:1000});
+    transfer(s,"spending",400); eq(balances(s).total,1000,"total"); eq(balances(s).savings,400,"savings");
+    return "$10 split 6/4"; });
+  t("Missed months compound on open", () => { const s = fresh();
+    tx(s,{type:"manual_credit",amountCents:10000,pool:"savings"}); s.interest.lastCreditedMonth = "2026-04";
+    eq(applyInterest(s,"2026-07-15").length,3,"months"); eq(balances(s).savings,10100,"balance");
+    eq(applyInterest(s,"2026-07-20").length,0,"no repeat"); return "$100 → 33c + 33c + 34c"; });
+  t("Chart is rebuilt from the ledger", () => { const s = fresh();
+    tx(s,{type:"manual_credit",amountCents:1000,pool:"savings",day:"2026-06-01"});
+    tx(s,{type:"transfer",from:"spending",amountCents:500,day:"2026-06-10"});
+    tx(s,{type:"transfer",from:"savings",amountCents:200,day:"2026-06-20"});
+    const p = savingsSeries(s);
+    eq(p[0].cents,0,"starts at zero");
+    eq(p[p.length-1].cents,1300,"ends at balance");
+    eq(p[p.length-1].cents,balances(s).savings,"matches the pool");
+    return "$10 in, $5 across, $2 back = $13, line and balance agree"; });
+  t("A new day clears the ticks by itself", () => { const s = fresh();
+    const y = numDay(dayNum(Clock.day()) - 1);
+    s.habits.done[y] = { h_teeth_am:true };
+    eq(isDone(s,"h_teeth_am",y),true,"yesterday"); eq(isDone(s,"h_teeth_am",Clock.day()),false,"today");
+    return "ticks are stored per day, so midnight needs no reset job"; });
+  t("Streaks count back, today is never a break", () => { const s = fresh();
+    const h = s.habits.daily[0];
+    for(let i=1;i<=4;i++) s.habits.done[numDay(dayNum(Clock.day())-i)] = { [h.id]:true };
+    eq(streakFor(s,h,"daily"),4,"today untouched");
+    toggleHabit(s,h.id); eq(streakFor(s,h,"daily"),5,"after ticking today");
+    s.habits.done[numDay(dayNum(Clock.day())-3)] = {};
+    eq(streakFor(s,h,"daily"),3,"a missed day cuts it"); return "4 → 5 → 3"; });
+  t("Weekly streaks only count their own days", () => { const s = fresh();
+    const h = s.habits.weekly[0];                       // Shower, Mon + Thu
+    let n = 0;
+    for(let i=0;i<28 && n<3;i++){ const d = numDay(dayNum(Clock.day())-i);
+      if(h.days.includes(Clock.weekday(d)) && d !== Clock.day()){ s.habits.done[d] = { [h.id]:true }; n++; } }
+    if(streakFor(s,h,"weekly") < 3) throw new Error("skipped days broke the streak");
+    return "Tue and Wed don't count against Mon/Thu"; });
+  t("Old saves upgrade, not break", () => {
+    const m = migrate({ version:0, chores:[{id:"x",name:"Feed the dog",payCents:100,active:true,order:1}] });
+    eq(m.version,SCHEMA_VERSION,"version"); eq(m.chores.length,1,"kept"); return "her data survives"; });
+
+  const paint = () => host.innerHTML = out.map(r =>
+    `<div class="test"><span class="m ${r.pass?"p":"f"}">${r.pass?"✓":"✕"}</span>
+     <span><b>${esc(r.name)}</b> — <span style="color:var(--muted)">${esc(r.why)}</span></span></div>`).join("");
+  paint();
+
+  (async () => {
+    const s = fresh(); await Pin.set(s,"9042");
+    const hidden = !JSON.stringify(s).includes('"9042"') && !!s.security.pinHash;
+    const good = await Pin.check(s,"9042"), bad = await Pin.check(s,"9043");
+    out.push({ name:"PIN salted, hashed, never stored", pass:hidden, why:"digits appear nowhere in the file" });
+    out.push({ name:"Right PIN opens, wrong one doesn't", pass:good.ok && !bad.ok, why:"5 wrong tries = 60s lockout" });
+    paint();
+  })();
+}
+
+boot();
+</script>
+</body>
+</html>
