@@ -490,13 +490,25 @@ function recentDecisions(state){
 }
 
 /* ---------------------------------------------------------- her actions */
+/* v2: Spending never sits below zero while Savings has money. Whatever
+   Spending can't cover is moved across from Savings straight away, so the
+   two pockets always show what's really there. The overdraft limit now
+   only applies once both pockets are empty. */
+function coverFromSavings(state){
+  const b = balances(state);
+  if(b.spending >= 0 || b.savings <= 0) return 0;
+  const amount = Math.min(-b.spending, b.savings);
+  tx(state, { type:"transfer", from:"savings", to:"spending", amountCents:amount, note:"Taken from Savings" });
+  return amount;
+}
 function logSpend(state, amountCents, note){
   if(!Number.isInteger(amountCents) || amountCents <= 0) return { ok:false, reason:"Type in how much you spent." };
   const floor = -state.settings.overdraftLimitCents;
-  const after = balances(state).spending - amountCents;
-  if(after < floor) return { ok:false, reason:`That would take Spending past ${Money.fmt(floor)}. Try a smaller amount.` };
+  if(balances(state).total - amountCents < floor)
+    return { ok:false, reason:`That's more than you have. Try a smaller amount.` };
   tx(state, { type:"spend", amountCents, pool:"spending", note:(note||"").trim() || "Something" });
-  return { ok:true, after };
+  const fromSavings = coverFromSavings(state);
+  return { ok:true, after: balances(state).spending, fromSavings };
 }
 function transfer(state, from, amountCents){
   const b = balances(state);
@@ -839,7 +851,7 @@ function renderParent(){
       <div class="row"><span class="spacer">Spending</span><b class="num">${Money.fmt(b.spending)}</b></div>
       <div class="row"><span class="spacer">Savings</span><b class="num">${Money.fmt(b.savings)}</b></div>
       <div class="row"><span class="spacer">Total</span><b class="num">${Money.fmt(b.total)}</b></div>
-      <p class="sub" style="margin:12px 0 0">Spending can run down to ${Money.fmt(-STATE.settings.overdraftLimitCents)} before it's blocked.</p>
+      <p class="sub" style="margin:12px 0 0">If Spending runs out, the rest comes from Savings. Once both are empty she can go down to ${Money.fmt(-STATE.settings.overdraftLimitCents)}.</p>
     </div>
 
     <div class="card">
@@ -1347,15 +1359,19 @@ function spendSheet(){
 
   const check = () => {
     const cents = Money.parse(q("#s-amt").value);
-    const after = balances(STATE).spending - (cents || 0);
+    const b = balances(STATE);
     if(!cents || cents <= 0){ q("#s-after").textContent = ""; q("#s-go").disabled = true; return; }
-    if(after < floor){
-      q("#s-after").textContent = `That's more than you can spend right now — Spending only goes down to ${Money.fmt(floor)}.`;
+    if(b.total - cents < floor){
+      q("#s-after").textContent = `That's more than you have right now.`;
       q("#s-go").disabled = true;
-    } else {
-      q("#s-after").textContent = `Spending would be ${Money.fmt(after)} after this.`;
-      q("#s-go").disabled = false;
+      return;
     }
+    const fromSp = Math.min(cents, Math.max(0, b.spending));
+    const fromSv = Math.min(cents - fromSp, Math.max(0, b.savings));
+    q("#s-after").textContent = fromSv
+      ? `${Money.fmt(fromSp)} from Spending and ${Money.fmt(fromSv)} from Savings.`
+      : `Spending would be ${Money.fmt(b.spending - cents)} after this.`;
+    q("#s-go").disabled = false;
   };
   q("#s-amt").oninput = check;
   q("#s-amt").focus();
@@ -1365,8 +1381,9 @@ function spendSheet(){
     const res = logSpend(STATE, cents, q("#s-note").value);
     if(!res.ok) return toast(res.reason);
     close(); save(); render();
-    toast(res.after < 0 ? `Written down. Spending is ${Money.fmt(res.after)} — it'll catch up next job.`
-                        : `Written down. ${Money.fmt(res.after)} left in Spending.`);
+    toast(res.fromSavings ? `Written down. ${Money.fmt(res.fromSavings)} came from Savings.`
+        : res.after < 0   ? `Written down. Spending is ${Money.fmt(res.after)} — it'll catch up next job.`
+                          : `Written down. ${Money.fmt(res.after)} left in Spending.`);
   };
 }
 
@@ -1859,6 +1876,7 @@ async function boot(){
   packageApp();
   STATE = await Storage.load();
   if(!STATE) return renderSetup();
+  coverFromSavings(STATE);          // v2: settles any negative Spending left by v1 (e.g. the −$10 on 18 Oct)
   const credits = applyInterest(STATE);
   pruneHabits(STATE);
   STATE.lastOpenedDay = Clock.day();
@@ -1907,6 +1925,11 @@ function runTests(){
     tx(s,{type:"chore_payment",amountCents:500}); eq(logSpend(s,2000,"Lego").ok,true,"allowed");
     eq(balances(s).spending,-1500,"floor"); eq(logSpend(s,1,"more").ok,false,"blocked");
     return "$5 in, $20 out, stops dead at −$15"; });
+  t("Overspending comes out of Savings", () => { const s = fresh();
+    tx(s,{type:"manual_credit",amountCents:5250,pool:"savings"});
+    const r = logSpend(s,1000,"Squishie");
+    eq(r.fromSavings,1000,"moved"); eq(balances(s).spending,0,"spending"); eq(balances(s).savings,4250,"savings");
+    return "$0 + $52.50, spend $10 → $0 + $42.50"; });
   t("Moving money invents none", () => { const s = fresh(); tx(s,{type:"chore_payment",amountCents:1000});
     transfer(s,"spending",400); eq(balances(s).total,1000,"total"); eq(balances(s).savings,400,"savings");
     return "$10 split 6/4"; });
