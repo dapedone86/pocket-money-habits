@@ -242,15 +242,26 @@
   }
   .grouphead{display:flex;align-items:center;gap:8px;margin:20px 0 10px;font-size:15px;font-weight:900}
   .grouphead .n{font-size:12px;color:var(--muted);font-weight:800}
-  .weekstrip{display:flex;gap:5px;margin-top:7px}
+  /* v2: two-letter days (no more T/T, S/S) and a missed day looks different from one still to come */
+  .weekstrip{display:flex;gap:3px;margin-top:7px}
   .weekstrip b{
-    width:27px;height:27px;border-radius:9px;font-size:11px;font-weight:900;
-    display:grid;place-items:center;
-    border:2px dashed #CFC4E6;background:transparent;color:#B4A6CF;   /* days it isn't on */
+    width:27px;height:28px;border-radius:9px;font-size:11px;font-weight:900;
+    display:grid;place-items:center;border:2px solid transparent;color:#C9BEDD;   /* not on this day */
   }
-  .weekstrip b.due{border:3px solid var(--ink);background:var(--mango);color:var(--ink)}
-  .weekstrip b.done{border:3px solid var(--ink);background:var(--lime);color:var(--ink)}
-  .weekstrip b.today{box-shadow:0 0 0 3px var(--blueberry)}
+  .weekstrip b.due{border:2px solid var(--ink);background:var(--card);color:var(--ink)}       /* still to come */
+  .weekstrip b.today{border:3px solid var(--ink);background:var(--mango);color:var(--ink)}
+  .weekstrip b.done{border:2px solid var(--ink);background:var(--lime);color:var(--ink)}
+  .weekstrip b.missed{border:2px solid #E59AAA;background:#FFE1E6;color:#B3203F}
+  .wkcard .wklegend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-weight:800;color:var(--muted);margin-top:10px}
+  .wkcard .wklegend i{display:inline-block;width:12px;height:12px;border-radius:4px;border:2px solid var(--ink);margin-right:4px;vertical-align:-1px}
+  .reward-pick{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--card);margin:0 0 10px}
+  .reward-pick .ri{font-size:28px;width:36px;text-align:center}
+  .rgrid{width:100%;border-collapse:collapse;font-size:13px}
+  .rgrid th{font-size:11px;color:var(--muted);font-weight:900;padding:4px 0}
+  .rgrid td{text-align:center;padding:3px 0}
+  .rgrid td.n{text-align:left;font-weight:800;padding-right:6px}
+  .rgrid button{min-height:30px;width:30px;padding:0;font-size:13px;border-width:2px;box-shadow:none;border-radius:8px;background:var(--card)}
+  .rgrid button.y{background:var(--lime)}
   .prog{height:14px;border:var(--line);border-radius:999px;background:var(--card);overflow:hidden;box-shadow:var(--pop)}
   .prog i{display:block;height:100%;background:var(--lime);transition:width .5s cubic-bezier(.2,.8,.2,1)}
   .daypick{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
@@ -380,6 +391,10 @@ function migrate(state){
   state.interest = { ...base.interest, ...(state.interest||{}) };
   state.habits   = { ...base.habits,   ...(state.habits||{}) };
   for(const k of ["chores","claims","transactions","goals"]) if(!Array.isArray(state[k])) state[k] = base[k];
+  state.settings.habitRewards = { ...base.settings.habitRewards, ...(state.settings.habitRewards||{}) };
+  if(!state.weeks || typeof state.weeks !== "object") state.weeks = {};
+  // the first week that can be reviewed is the one v2 was installed in, so no stale old weeks pop up
+  if(!state.rewardsFrom) state.rewardsFrom = Clock.weekStart(Clock.day());
   // habits gained icons in stage 6 — give older saves sensible ones
   const guess = { h_teeth_am:"🪥", h_teeth_pm:"🪥", h_cream:"🧴", h_shower:"🚿" };
   for(const list of [state.habits.daily, state.habits.weekly])
@@ -394,7 +409,9 @@ function seedState(){
   return {
     version: SCHEMA_VERSION,
     createdAt: new Date().toISOString(),
-    settings: { childName:null, currency:"AUD", timeZone:TZ, interestRateBps:400, overdraftLimitCents:1500 },
+    settings: { childName:null, currency:"AUD", timeZone:TZ, interestRateBps:400, overdraftLimitCents:1500,
+                habitRewards: { thresholdPct:100, bonusCents:200, choreMultiplier:2 } },
+    weeks: {}, rewardsFrom: Clock.weekStart(Clock.day()),
     security: { pinHash:null, pinSalt:null, algo:null, failedAttempts:0, lockedUntil:null },
     chores: [
       { id:"chore_dish",  name:"Empty the dishwasher", payCents:50, emoji:"🍽️", active:true, order:1 },
@@ -436,6 +453,7 @@ function balances(state){
     switch(t.type){
       case "chore_payment":
       case "manual_credit":
+      case "habit_bonus":
       case "interest":  total += t.amountCents; break;
       case "spend":     total -= t.amountCents;
                         if(t.goalId) goals[t.goalId] = (goals[t.goalId]||0) - t.amountCents; break;
@@ -468,9 +486,12 @@ function approveClaims(state, ids){
     const c = state.claims.find(x => x.id === id && x.status === "pending");
     if(!c) continue;
     c.status = "approved"; c.decidedAt = new Date().toISOString();
-    tx(state, { type:"chore_payment", amountCents:c.payCents,
-                note:c.choreName, claimId:c.id, day:c.day });
-    paid += c.payCents; count++;
+    // v2: a "jobs pay ×N" habit reward applies to jobs done on boosted days
+    const mult = boostOn(state, "chores", c.day) ? state.settings.habitRewards.choreMultiplier : 1;
+    const amount = Math.round(c.payCents * mult);
+    tx(state, { type:"chore_payment", amountCents:amount,
+                note: mult > 1 ? `${c.choreName} (×${mult})` : c.choreName, claimId:c.id, day:c.day });
+    paid += amount; count++;
   }
   return { count, paidCents: paid };
 }
@@ -560,14 +581,26 @@ function applyInterest(state, nowDay = Clock.day()){
   const owed = Clock.monthsBetween(state.interest.lastCreditedMonth, nowDay.slice(0,7));
   const credits = [];
   for(const monthKey of owed){
-    const all = balances(state).total;            // v2: interest on all her money
-    const amount = Math.max(0, Math.round(all * state.settings.interestRateBps / 10000 / 12));
+    const all = Math.max(0, balances(state).total);   // v2: interest on all her money
+    const bps = state.settings.interestRateBps;
+    const amount = Math.round(all * bps / 10000 / 12);
+    // v2: a "double interest" habit reward adds one extra day's interest for each
+    // boosted day in the month just ended (paid on the 1st, like normal interest)
+    const [y,m] = monthKey.split("-").map(Number);
+    const prev = m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,"0")}`;
+    let boosted = 0;
+    for(let d = dayNum(`${prev}-01`); numDay(d).startsWith(prev); d++) if(boostOn(state,"interest",numDay(d))) boosted++;
+    const bonus = Math.round(all * bps / 10000 / 365 * boosted);
+    const at = new Date(`${monthKey}-01T00:00:00Z`).toISOString();
     if(amount > 0){
-      tx(state, { type:"interest", amountCents:amount, note:"Interest",
-                  day:`${monthKey}-01`, at:new Date(`${monthKey}-01T00:00:00Z`).toISOString(), monthKey });
+      tx(state, { type:"interest", amountCents:amount, note:"Interest", day:`${monthKey}-01`, at, monthKey });
       state.interest.totalEarnedCents += amount;
-      credits.push({ monthKey, amount });
     }
+    if(bonus > 0){
+      tx(state, { type:"interest", amountCents:bonus, note:`Double interest (${boosted} day${boosted===1?"":"s"})`, day:`${monthKey}-01`, at, monthKey });
+      state.interest.totalEarnedCents += bonus;
+    }
+    if(amount + bonus > 0) credits.push({ monthKey, amount: amount + bonus });
     state.interest.lastCreditedMonth = monthKey;
   }
   return credits;
@@ -741,6 +774,7 @@ function renderChores(){
     <p class="eyebrow">${esc(Clock.friendly(Clock.day()))} · ${esc(Clock.au(Clock.day()))}</p>
     <h1>${name ? esc(name) + "’s jobs" : "Jobs"}</h1>
     <p class="sub">Tap a job when it's done. A grown-up checks it, then the money is yours.</p>
+    ${activeBoost(STATE, Clock.day(), "chores") ? `<div class="card" style="background:#E4FBEF;padding:12px 16px"><b>${esc(boostText(activeBoost(STATE, Clock.day(), "chores")))}</b></div>` : ""}
 
     <div id="chore-list">
       ${STATE.chores.filter(c => c.active).sort((a,b) => a.order-b.order).map(c => `
@@ -861,6 +895,21 @@ function renderParent(){
       ` : `<div class="empty"><span class="big">✅</span>Queue's clear. Nothing waiting on you.</div>`}
     </div>
 
+    ${reviewCardHTML()}
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0">Habit rewards</h2>
+        <span class="spacer"></span>
+        <button class="tiny" id="edit-rewards">Change</button>
+      </div>
+      <div class="row"><span class="spacer">Earned at</span><b class="num">${STATE.settings.habitRewards.thresholdPct}% of the week</b></div>
+      <div class="row"><span class="spacer">Bonus</span><b class="num">${Money.fmt(STATE.settings.habitRewards.bonusCents)}</b></div>
+      <div class="row"><span class="spacer">Jobs pay</span><b class="num">×${STATE.settings.habitRewards.choreMultiplier} for 7 days</b></div>
+      <div class="row"><span class="spacer">Interest</span><b class="num">×2 for 7 days</b></div>
+      <p class="sub" style="margin:12px 0 0">From Monday, last week shows up here to check. She picks one reward if it's earned.</p>
+    </div>
+
     <div class="card">
       <div class="row" style="margin-bottom:10px">
         <h2 style="margin:0">Jobs &amp; pay</h2>
@@ -960,6 +1009,8 @@ function renderParent(){
   document.getElementById("export").onclick = () => exportBackup();
   document.getElementById("restore").onclick = () => restoreBackup();
   document.getElementById("edit-rate").onclick = () => rateSheet();
+  document.getElementById("edit-rewards").onclick = () => rewardSettingsSheet();
+  bindReviewCard();
   document.getElementById("add-money").onclick = () => addMoneySheet();
   document.getElementById("add-chore").onclick = () => choreSheet(null);
   app.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => choreSheet(b.dataset.edit));
@@ -1057,7 +1108,7 @@ function choreSheet(choreId){
 const dayNum = d => { const [y,m,dd] = d.split("-").map(Number); return Date.UTC(y,m-1,dd)/864e5; };
 const numDay = n => new Date(n*864e5).toISOString().slice(0,10);
 
-const MONEY_IN = new Set(["chore_payment","manual_credit","interest"]);
+const MONEY_IN = new Set(["chore_payment","manual_credit","interest","habit_bonus"]);
 function moneySeries(state){                       // v2: all her money over time
   const rel = state.transactions
     .filter(t => MONEY_IN.has(t.type) || t.type === "spend")
@@ -1188,7 +1239,8 @@ function txnLook(t){
   switch(t.type){
     case "chore_payment": return { ic:"🧺", label:t.note || "Job", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
     case "manual_credit": return { ic:"🎁", label:t.note || "Money in", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
-    case "interest":      return { ic:"✨", label:"Interest", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "interest":      return { ic:"✨", label:t.note || "Interest", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
+    case "habit_bonus":   return { ic:"🏆", label:t.note || "Habit week bonus", amt:"+"+Money.fmt(t.amountCents), tone:"plus" };
     case "spend":         return t.goalId
                             ? { ic:"🎉", label:"Bought: " + (t.note || "goal"), amt:"−"+Money.fmt(t.amountCents) }
                             : { ic:"🛍️", label:t.note || "Something", amt:"−"+Money.fmt(t.amountCents) };
@@ -1581,6 +1633,60 @@ function pruneHabits(s, keepDays = 400){
   for(const day of Object.keys(s.habits.done)) if(day < cutoff) delete s.habits.done[day];
 }
 
+/* ---- weekly habit rewards (v2) ---------------------------------------
+   A week runs Mon–Sun. She ticks during the week; from Monday the parent
+   reviews the week just gone (can fix ticks), then confirms it. If the share
+   of habits done reaches the parent's threshold, she picks one reward:
+     bonus    – a fixed amount added to her money now
+     interest – double interest for the next 7 days
+     chores   – jobs pay ×N for the next 7 days
+   Only last week can be reviewed; an unreviewed older week just lapses. */
+const REWARDS = {
+  bonus:    { icon:"💵", label: r => `${Money.fmt(r.bonusCents)} bonus`,            sub:"Added to your money now" },
+  interest: { icon:"✨", label: () => "Double interest",                             sub:"For the next 7 days" },
+  chores:   { icon:"🧺", label: r => `Jobs pay ×${r.choreMultiplier}`,              sub:"For the next 7 days" }
+};
+const weekDaysOf = ws => [0,1,2,3,4,5,6].map(i => numDay(dayNum(ws) + i));
+const lastWeekStart = (today = Clock.day()) => numDay(dayNum(Clock.weekStart(today)) - 7);
+
+function weekStats(s, ws){
+  let due = 0, done = 0;
+  for(const day of weekDaysOf(ws)){
+    for(const h of s.habits.daily){ due++; if(isDone(s,h.id,day)) done++; }
+    for(const h of s.habits.weekly) if(dueOn(h,day,"weekly")){ due++; if(isDone(s,h.id,day)) done++; }
+  }
+  return { due, done, pct: due ? Math.round(done / due * 100) : 0 };
+}
+/** The week waiting for the parent, or null. */
+function weekToReview(s, today = Clock.day()){
+  const ws = lastWeekStart(today);
+  return s.weeks[ws] || ws < (s.rewardsFrom || ws) ? null : ws;
+}
+function confirmWeek(s, ws){
+  const st = weekStats(s, ws);
+  const earned = st.due > 0 && st.pct >= s.settings.habitRewards.thresholdPct;
+  s.weeks[ws] = { pct: st.pct, earned, reward: null, confirmedAt: new Date().toISOString() };
+  return s.weeks[ws];
+}
+/** An earned week whose reward she hasn't picked yet. */
+const rewardToPick = s => Object.keys(s.weeks).sort().reverse().find(ws => s.weeks[ws].earned && !s.weeks[ws].reward) || null;
+
+function chooseReward(s, ws, type, today = Clock.day()){
+  const w = s.weeks[ws];
+  if(!w || !w.earned || w.reward || !REWARDS[type]) return { ok:false };
+  const r = s.settings.habitRewards;
+  w.reward = { type, from: today, to: numDay(dayNum(today) + 6), chosenAt: new Date().toISOString() };
+  if(type === "bonus") tx(s, { type:"habit_bonus", amountCents: r.bonusCents, note:"Habit week bonus", day: today });
+  return { ok:true, reward: w.reward };
+}
+/** Is a boost of this type running on this day? */
+const boostOn = (s, type, day) => Object.values(s.weeks).some(w => w.reward && w.reward.type === type && w.reward.from <= day && day <= w.reward.to);
+const activeBoost = (s, day = Clock.day(), type = null) => {
+  const w = Object.values(s.weeks).find(w => w.reward && w.reward.type !== "bonus" && (!type || w.reward.type === type)
+                                             && w.reward.from <= day && day <= w.reward.to);
+  return w ? w.reward : null;
+};
+
 /** One habit row. The tick box shows the habit's own icon until it's done,
     then flips to a tick — one control, no wasted width on a phone. */
 function habitRowHTML(h, kind, opts = {}){
@@ -1591,16 +1697,18 @@ function habitRowHTML(h, kind, opts = {}){
                aria-pressed="${on}" aria-label="${esc(h.name)}">
     <span class="tick"><span class="i">${esc(h.emoji || "⭐")}</span><span class="k">✔</span></span>
     <span class="spacer">
-      <span class="hname">${esc(h.name)}</span>
+      <span class="hname">${esc(h.name)}</span>${kind === "weekly" && !opts.compact && st >= 2 ? ` <span class="streak" style="margin-left:6px">🔥 ${st}</span>` : ""}
       ${kind === "weekly" && !opts.compact ? `<div class="weekstrip">${DAYS.map((d,i) => {
           const n = i+1;
           const dayStr = numDay(dayNum(Clock.weekStart(today)) + i);
-          const cls = !h.days.includes(n) ? "" : (isDone(STATE,h.id,dayStr) ? "done" : "due");
-          return `<b class="${cls} ${n===wd ? "today" : ""}">${d[0]}</b>`;
+          const cls = !h.days.includes(n) ? ""
+            : isDone(STATE,h.id,dayStr) ? "done"
+            : dayStr < today ? "missed" : dayStr === today ? "today" : "due";
+          return `<b class="${cls}">${d.slice(0,2)}</b>`;
         }).join("")}</div>`
       : `<span class="hwhen">${on ? "Done" : "Still to do"}</span>`}
     </span>
-    ${st >= 2 ? `<span class="streak">🔥 ${st}</span>` : ""}
+    ${st >= 2 && !(kind === "weekly" && !opts.compact) ? `<span class="streak">🔥 ${st}</span>` : ""}
     ${opts.edit ? `<button class="tiny ghost" data-hedit="${h.id}" data-hkind="${kind}">Edit</button>` : ""}
   </div>`;
 }
@@ -1634,7 +1742,6 @@ function renderHabits(){
   const dueCount = dailySorted.length + weeklyToday.length;
   const doneCount = dailySorted.filter(h => isDone(STATE,h.id,today)).length
                   + weeklyToday.filter(h => isDone(STATE,h.id,today)).length;
-  const pct = dueCount ? Math.round(doneCount/dueCount*100) : 0;
   const row = (h,kind) => habitRowHTML(h, kind, { edit: HABIT_EDIT });
 
   const groups = TIMES.map(t => {
@@ -1647,13 +1754,23 @@ function renderHabits(){
       ${list.map(h => row(h,"daily")).join("")}`;
   }).join("");
 
+  const ws = Clock.weekStart(today), wk = weekStats(STATE, ws), need = STATE.settings.habitRewards.thresholdPct;
+  const boost = activeBoost(STATE);
+
   app.innerHTML = `
     <p class="eyebrow">${esc(DAYS[wd-1])} ${esc(Clock.au(today))}</p>
     <h1>Your routine</h1>
     <p class="sub">${dueCount
       ? (doneCount === dueCount ? "Every single one done today. Legend." : `${doneCount} of ${dueCount} done so far today.`)
       : "Nothing set up yet — add your first one below."}</p>
-    ${dueCount ? `<div class="prog" style="margin-bottom:22px"><i style="width:${pct}%"></i></div>` : ""}
+    ${rewardBannerHTML()}
+    <div class="card wkcard">
+      <div class="row"><b class="spacer">This week · ${esc(weekLabel(ws))}</b><b class="num">${wk.pct}%</b></div>
+      <div class="prog" style="margin:10px 0 8px"><i style="width:${wk.pct}%;${wk.pct >= need ? "" : "background:var(--blueberry)"}"></i></div>
+      <div class="hwhen" style="font-size:13px">${wk.done} of ${wk.due} done · reach ${need}% by Sunday for a reward 🏆</div>
+      ${boost ? `<div class="hwhen" style="font-size:13px;margin-top:6px;color:var(--ink)">${boostText(boost)}</div>` : ""}
+      <div class="wklegend"><span><i style="background:var(--lime)"></i>done</span><span><i style="background:var(--mango)"></i>today</span><span><i style="background:var(--card)"></i>coming up</span><span><i style="background:#FFE1E6;border-color:#E59AAA"></i>missed</span></div>
+    </div>
 
     ${groups}
 
@@ -1684,8 +1801,135 @@ function renderHabits(){
     </div>` : ""}`;
 
   bindHabitRows(renderHabits);
+  bindRewardBanner();
   document.getElementById("h-add").onclick = () => habitSheet(null);
   document.getElementById("h-edit").onclick = () => { HABIT_EDIT = !HABIT_EDIT; renderHabits(); };
+}
+
+/* ---- reward UI (v2) ---- */
+const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function weekLabel(ws){
+  const a = ws, b = numDay(dayNum(ws) + 6);
+  const [, am, ad] = a.split("-").map(Number), [, bm, bd] = b.split("-").map(Number);
+  return am === bm ? `${ad}–${bd} ${SHORT_MONTHS[bm-1]}` : `${ad} ${SHORT_MONTHS[am-1]} – ${bd} ${SHORT_MONTHS[bm-1]}`;
+}
+const endsLabel = day => `${DAYS[Clock.weekday(day)-1]} ${Clock.au(day).split("/").slice(0,2).join("/")}`;
+const boostText = r => r.type === "interest"
+  ? `✨ Double interest until ${endsLabel(r.to)}`
+  : `🧺 Jobs pay ×${STATE.settings.habitRewards.choreMultiplier} until ${endsLabel(r.to)}`;
+
+function rewardBannerHTML(){
+  const ws = rewardToPick(STATE);
+  return ws ? `<button class="go" data-reward="${ws}" style="width:100%;margin:6px 0 16px;text-align:left;display:flex;gap:12px;align-items:center">
+      <span style="font-size:30px">🏆</span><span><b>You earned a reward!</b><br><span style="font-size:13px">Week of ${esc(weekLabel(ws))}. Tap to pick one.</span></span>
+    </button>` : "";
+}
+function bindRewardBanner(){
+  app.querySelectorAll("[data-reward]").forEach(b => b.onclick = () => rewardSheet(b.dataset.reward));
+}
+function rewardSheet(ws){
+  const r = STATE.settings.habitRewards;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <p class="eyebrow">Week of ${esc(weekLabel(ws))} · ${STATE.weeks[ws].pct}%</p>
+      <h2>Pick your reward</h2>
+      ${Object.entries(REWARDS).map(([k,v]) => `
+        <button class="reward-pick" data-pick="${k}"><span class="ri">${v.icon}</span>
+          <span><b>${esc(v.label(r))}</b><br><span class="hwhen" style="font-size:13px">${v.sub}</span></span></button>`).join("")}
+      <button class="ghost" id="r-later" style="width:100%">Later</button>
+    </div>`;
+  document.body.appendChild(veil);
+  const close = () => veil.remove();
+  veil.addEventListener("click", async e => {
+    if(e.target === veil || e.target.closest("#r-later")) return close();
+    const p = e.target.closest("[data-pick]");
+    if(!p) return;
+    const res = chooseReward(STATE, ws, p.dataset.pick);
+    if(!res.ok) return close();
+    close(); await save(); render();
+    celebrate(innerWidth/2, innerHeight/3, ["🏆","⭐","✨","🎉","⭐","🏆"]);
+    toast(p.dataset.pick === "bonus" ? `${Money.fmt(r.bonusCents)} added. Well earned!` : boostText(res.reward));
+  });
+}
+
+/* ---- parent: review last week, then confirm ---- */
+function reviewCardHTML(){
+  const ws = weekToReview(STATE);
+  if(!ws) return "";
+  const H = STATE.habits, days = weekDaysOf(ws);
+  const rows = [...H.daily.slice().sort((a,b)=>a.order-b.order).map(h => [h,"daily"]),
+                ...H.weekly.slice().sort((a,b)=>a.order-b.order).map(h => [h,"weekly"])];
+  const st = weekStats(STATE, ws), need = STATE.settings.habitRewards.thresholdPct;
+  return `
+    <div class="card">
+      <h2>Habits: week of ${esc(weekLabel(ws))}</h2>
+      <p class="sub" style="margin-bottom:10px">Tap a box to fix anything she ticked but didn't do (or forgot to tick).</p>
+      <table class="rgrid">
+        <tr><th></th>${DAYS.map(d => `<th>${d.slice(0,2)}</th>`).join("")}</tr>
+        ${rows.map(([h,k]) => `<tr><td class="n">${esc(h.emoji||"⭐")} ${esc(h.name)}${k==="daily" && h.timeOfDay ? `<br><span class="hwhen">${esc(h.timeOfDay)}</span>` : ""}</td>
+          ${days.map(day => dueOn(h,day,k)
+            ? `<td><button class="${isDone(STATE,h.id,day) ? "y" : ""}" data-rev="${h.id}" data-day="${day}">${isDone(STATE,h.id,day) ? "✓" : ""}</button></td>`
+            : `<td></td>`).join("")}</tr>`).join("")}
+      </table>
+      <div class="row" style="margin:14px 0 10px"><b class="spacer">${st.done} of ${st.due} done</b>
+        <b class="num" style="color:${st.pct >= need ? "#149A5E" : "#B3203F"}">${st.pct}% ${st.pct >= need ? "· reward earned" : `· needs ${need}%`}</b></div>
+      <button class="go" id="rev-ok" style="width:100%">Confirm week</button>
+    </div>`;
+}
+function bindReviewCard(){
+  const ok = document.getElementById("rev-ok");
+  if(!ok) return;
+  const ws = weekToReview(STATE);
+  app.querySelectorAll("[data-rev]").forEach(b => b.onclick = async () => {
+    toggleHabit(STATE, b.dataset.rev, b.dataset.day); await save(); render();
+  });
+  ok.onclick = async () => {
+    const w = confirmWeek(STATE, ws); await save(); render();
+    toast(w.earned ? "Confirmed. She can pick her reward now." : `Confirmed at ${w.pct}%. No reward this week.`);
+  };
+}
+function rewardSettingsSheet(){
+  const r = STATE.settings.habitRewards;
+  let mult = r.choreMultiplier;
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" style="max-height:88vh;overflow-y:auto">
+      <p class="eyebrow">Parent</p>
+      <h2>Habit rewards</h2>
+      <label class="field"><span class="eyebrow">Habits done to earn a reward (%)</span>
+        <input id="w-pct" inputmode="numeric" value="${r.thresholdPct}"></label>
+      <label class="field"><span class="eyebrow">Bonus amount</span>
+        <input id="w-bonus" inputmode="decimal" value="${(r.bonusCents/100).toFixed(2)}"></label>
+      <p class="eyebrow">Jobs pay</p>
+      <div class="chips" id="w-mult">
+        ${[1.5, 2].map(m => `<button data-mult="${m}" aria-pressed="${m===mult}">×${m}</button>`).join("")}
+      </div>
+      <div class="row">
+        <button class="ghost" id="w-cancel">Cancel</button>
+        <button class="go spacer" id="w-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(veil);
+  const q = s => veil.querySelector(s);
+  const close = () => veil.remove();
+  veil.addEventListener("click", e => {
+    if(e.target === veil) return close();
+    const m = e.target.closest("[data-mult]");
+    if(m){ mult = Number(m.dataset.mult); veil.querySelectorAll("[data-mult]").forEach(x => x.setAttribute("aria-pressed", String(x===m))); }
+  });
+  q("#w-cancel").onclick = close;
+  q("#w-save").onclick = async () => {
+    const pct = Math.round(Number(q("#w-pct").value)), bonus = Money.parse(q("#w-bonus").value);
+    if(!(pct >= 1 && pct <= 100)) return toast("Pick a % between 1 and 100.");
+    if(!bonus || bonus <= 0) return toast("How much is the bonus?");
+    close();
+    if(!await requirePin("Confirm reward settings", `${pct}% · ${Money.fmt(bonus)} · ×${mult}`)) return;
+    Object.assign(STATE.settings.habitRewards, { thresholdPct:pct, bonusCents:bonus, choreMultiplier:mult });
+    await save(); render(); toast("Reward settings saved.");
+  };
 }
 
 /* ---- her own habit editor: no PIN, these aren't money ---- */
@@ -1809,6 +2053,7 @@ function renderHome(){
     <p class="eyebrow">${esc(DAYS[wd-1])} ${esc(Clock.au(today))}</p>
     <h1>${esc(hello)}${name ? ", " + esc(name) : ""}</h1>
     <p class="sub">${left ? `${left} thing${left===1?"":"s"} still to do today.` : "Everything's ticked off today."}</p>
+    ${rewardBannerHTML()}
 
     <div class="card" data-goto="money" role="button" tabindex="0" style="cursor:pointer">
       <p class="eyebrow">You have</p>
@@ -1847,6 +2092,7 @@ function renderHome(){
     </div>`;
 
   bindHabitRows(renderHome);
+  bindRewardBanner();
   app.querySelectorAll("[data-goto]").forEach(el => {
     const go = () => { VIEW = el.dataset.goto; render(); window.scrollTo(0,0); };
     el.onclick = e => { if(!e.target.closest("[data-habit]")) go(); };
@@ -2069,6 +2315,35 @@ function runTests(){
       if(h.days.includes(Clock.weekday(d)) && d !== Clock.day()){ s.habits.done[d] = { [h.id]:true }; n++; } }
     if(streakFor(s,h,"weekly") < 3) throw new Error("skipped days broke the streak");
     return "Tue and Wed don't count against Mon/Thu"; });
+  const tickWeek = (s, ws) => { for(const day of weekDaysOf(ws)){
+      for(const h of s.habits.daily) s.habits.done[day] = { ...(s.habits.done[day]||{}), [h.id]:true };
+      for(const h of s.habits.weekly) if(dueOn(h,day,"weekly")) s.habits.done[day] = { ...(s.habits.done[day]||{}), [h.id]:true }; } };
+  t("A full week earns a reward, a short one doesn't", () => { const s = fresh(); s.rewardsFrom = "2026-01-05";
+    tickWeek(s,"2026-10-12"); eq(weekStats(s,"2026-10-12").due,23,"3 daily ×7 + shower ×2");
+    eq(weekToReview(s,"2026-10-19"),"2026-10-12","Monday shows last week");
+    eq(confirmWeek(s,"2026-10-12").earned,true,"100% earns"); eq(weekToReview(s,"2026-10-19"),null,"only once");
+    delete s.habits.done["2026-10-13"]; s.weeks = {};
+    eq(confirmWeek(s,"2026-10-12").earned,false,"one day off at 100% threshold");
+    s.weeks = {}; s.settings.habitRewards.thresholdPct = 80;
+    eq(confirmWeek(s,"2026-10-12").earned,true,"20 of 23 = 87% passes 80%");
+    return "23 due; parent sets the bar"; });
+  t("Bonus reward adds money once", () => { const s = fresh(); s.weeks["2026-10-12"] = { pct:100, earned:true, reward:null };
+    eq(rewardToPick(s),"2026-10-12","waiting");
+    chooseReward(s,"2026-10-12","bonus","2026-10-19"); eq(balances(s).total,200,"$2"); eq(rewardToPick(s),null,"picked");
+    eq(chooseReward(s,"2026-10-12","bonus","2026-10-19").ok,false,"can't pick twice"); return "+$2, once"; });
+  t("Jobs ×2 for 7 days, then back to normal", () => { const s = fresh(); s.weeks["2026-10-12"] = { pct:100, earned:true, reward:null };
+    chooseReward(s,"2026-10-12","chores","2026-10-19");
+    const mk = day => { s.claims.push({ id:"c"+day, choreId:"chore_dish", choreName:"Dishes", payCents:50, day, status:"pending" }); return "c"+day; };
+    approveClaims(s,[mk("2026-10-25")]); eq(balances(s).total,100,"Sunday 25th is day 7: ×2");
+    approveClaims(s,[mk("2026-10-26")]); eq(balances(s).total,150,"day 8 back to normal");
+    return "19–25 Oct doubled"; });
+  t("Double interest only for the boosted days", () => { const s = fresh();
+    tx(s,{type:"manual_credit",amountCents:36500}); s.interest.lastCreditedMonth = "2026-10";
+    s.settings.interestRateBps = 500;
+    s.weeks["2026-10-12"] = { pct:100, earned:true, reward:{ type:"interest", from:"2026-10-27", to:"2026-11-02" } };
+    applyInterest(s,"2026-11-05");
+    eq(balances(s).total, 36500 + 152 + 25, "$365 at 5%: $1.52 month + 5 Oct days × 5c");
+    return "27–31 Oct count in October's interest"; });
   t("Old saves upgrade, not break", () => {
     const m = migrate({ version:0, chores:[{id:"x",name:"Feed the dog",payCents:100,active:true,order:1}] });
     eq(m.version,SCHEMA_VERSION,"version"); eq(m.chores.length,1,"kept"); return "her data survives"; });
